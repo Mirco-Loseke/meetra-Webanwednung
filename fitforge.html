@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FitForge</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0D0D0F;color:#F0EDE8;font-family:'DM Sans',sans-serif;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:#111114;}
+::-webkit-scrollbar-thumb{background:#2A2A30;border-radius:3px;}
+@keyframes pageEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes dropIn{from{opacity:0;transform:translateY(-8px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}
+@keyframes spin{to{transform:rotate(360deg);}}
+.pageEnter{animation:pageEnter 0.4s cubic-bezier(0.16,1,0.3,1) both;}
+.fadeIn{animation:fadeIn 0.3s ease both;}
+.dropIn{animation:dropIn 0.25s cubic-bezier(0.16,1,0.3,1) both;}
+.statCard{transition:transform 0.2s,box-shadow 0.2s;}
+.statCard:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.planCard{transition:transform 0.2s,box-shadow 0.2s;}
+.planCard:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,0.5);}
+.histCard:hover{background:#161618!important;border-color:#2A2A30!important;}
+.recentCard:hover{background:#161618!important;}
+.notifRow:hover{background:#1E1E22!important;}
+.avCircle:hover .avOverlay{opacity:1!important;}
+.iconBtn:hover{background:#252528!important;color:#F0EDE8!important;}
+.cardIconBtn:hover{background:#1A1A1F!important;color:#F0EDE8!important;}
+.colorSwatch:hover{transform:scale(1.25);}
+.docCard:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,0.5);}
+input:focus,select:focus,textarea:focus{border-color:#FF6B35!important;outline:none;}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+input[type=color]{-webkit-appearance:none;padding:0;}
+input[type=color]::-webkit-color-swatch-wrapper{padding:0;}
+input[type=color]::-webkit-color-swatch{border:none;border-radius:7px;}
+.markAllBtn{background:transparent;border:none;color:#FF6B35;cursor:pointer;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;}
+.profEditBtn:hover{color:#F0EDE8!important;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react" data-type="module">
+const { useState, useEffect, useRef } = React;
+const fbGet = async (key, fallback) => { try { const r=localStorage.getItem("ff_"+key); return r?JSON.parse(r):fallback; } catch { return fallback; } };
+const fbSet = async (key, value) => { try { localStorage.setItem("ff_"+key, JSON.stringify(value)); } catch {} };
+
+const defaultData={plans:[{id:1,name:"Push Pull Legs",color:"#FF6B35",days:["Montag","Mittwoch","Freitag"],exercises:[{name:"Bankdrücken",photo:null},{name:"Schulterdrücken",photo:null},{name:"Kniebeugen",photo:null},{name:"Kreuzheben",photo:null}]},{id:2,name:"Upper / Lower",color:"#00D9C0",days:["Dienstag","Donnerstag"],exercises:[{name:"Klimmzüge",photo:null},{name:"Rudern",photo:null},{name:"Beinpresse",photo:null}]}],workouts:[{id:1,date:"2025-03-10",planId:1,name:"Push Day",duration:65,exercises:[{name:"Bankdrücken",sets:[{reps:8,weight:80},{reps:8,weight:80},{reps:6,weight:85}]},{name:"Schulterdrücken",sets:[{reps:10,weight:50},{reps:10,weight:50}]}],photo:null,note:"Starke Session!"},{id:2,date:"2025-03-12",planId:1,name:"Pull Day",duration:55,exercises:[{name:"Klimmzüge",sets:[{reps:10,weight:0},{reps:9,weight:0},{reps:8,weight:0}]}],photo:null,note:""},{id:3,date:"2025-03-14",planId:2,name:"Upper Body",duration:72,exercises:[{name:"Bankdrücken",sets:[{reps:8,weight:82.5},{reps:8,weight:82.5},{reps:7,weight:82.5}]}],photo:null,note:""},{id:4,date:"2025-03-08",planId:1,name:"Leg Day",duration:60,exercises:[{name:"Kniebeugen",sets:[{reps:8,weight:100},{reps:8,weight:100},{reps:6,weight:105}]}],photo:null,note:""},{id:5,date:"2025-03-06",planId:2,name:"Pull",duration:50,exercises:[{name:"Klimmzüge",sets:[{reps:12,weight:0},{reps:10,weight:0}]},{name:"Rudern",sets:[{reps:10,weight:60},{reps:10,weight:60}]}],photo:null,note:""}]};
+const defaultUser={firstName:"",lastName:"",email:"",weight:"",height:"",goal:"Muskelaufbau",avatar:null,notificationsEnabled:true,reminderTime:"08:00",calorieGoal:2500,proteinGoal:150};
+const defaultPRs={"bankdrücken":{name:"Bankdrücken",weight:85,reps:6,date:"2025-03-10"},"kniebeugen":{name:"Kniebeugen",weight:105,reps:6,date:"2025-03-08"}};
+const readFile=file=>new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(file);});
+const todayStr=()=>new Date().toISOString().split("T")[0];
+const fmtDate=d=>new Date(d).toLocaleDateString("de-DE");
+const getInitials=u=>((u.firstName?.[0]||"")+(u.lastName?.[0]||"")).toUpperCase()||"FF";
+const timeAgo=ts=>{const m=Math.floor((Date.now()-ts)/60000);if(m<1)return"Gerade eben";if(m<60)return`vor ${m} Min`;const h=Math.floor(m/60);if(h<24)return`vor ${h} Std`;return`vor ${Math.floor(h/24)} Tagen`;};
+const WEEKDAYS=["Mo","Di","Mi","Do","Fr","Sa","So"];
+const FULL_WEEKDAYS=["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
+const IC={
+  dashboard:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>,
+  plans:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>,
+  log:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>,
+  history:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M3 12a9 9 0 109-9 9 9 0 00-9 9"/><path d="M3 4v4h4M12 7v5l3 3"/></svg>,
+  stats:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>,
+  nutrition:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M12 2C8 2 5 6 5 10c0 6 7 12 7 12s7-6 7-12c0-4-3-8-7-8z"/><circle cx="12" cy="10" r="2.5"/></svg>,
+  trophy:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M8 21h8M12 17v4"/><path d="M5 3h14v8a7 7 0 01-14 0V3z"/><path d="M5 7H2v3a3 3 0 003 3M19 7h3v3a3 3 0 01-3 3"/></svg>,
+  fire:<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 23c-4.97 0-9-3.584-9-8 0-2.58 1.22-4.9 3.5-6.5.47-.33 1.1.02 1.07.59-.12 1.82.37 3.23 1.46 4.15.35.29.87.06.9-.39.12-1.83.89-4.56 3.57-6.35.5-.33 1.16.05 1.1.63-.22 2.1.73 3.74 2.9 5.09.52.32 1.1.59 1.64.91.19.11.25.35.14.54C18.12 15.45 17 16.61 17 18c0 1.1.9 2 2 2s2-.9 2-2c0-.46.56-.69.87-.36C22.57 18.56 23 19.73 23 21c0 1.1-.9 2-2 2h-9z"/></svg>,
+  plus:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>,
+  dumbbell:<svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M6.5 6.5h11M6.5 17.5h11"/><rect x="2" y="5" width="3" height="14" rx="1.5"/><rect x="19" y="5" width="3" height="14" rx="1.5"/><path d="M5 12h14"/></svg>,
+  clock:<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>,
+  camera:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>,
+  trash:<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"/></svg>,
+  check:<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M5 13l4 4L19 7"/></svg>,
+  x:<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg>,
+  bolt:<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>,
+  bell:<svg width="19" height="19" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>,
+  edit:<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  star:<svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
+  image:<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>,
+  docs:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>,
+  folder:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>,
+  folderOpen:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v1"/><path d="M2 19l3-8h16l-3 8H2z"/></svg>,
+  tag:<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+  move:<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>,
+};
+function genNotifs(data,user){const n=[],t=new Date(),ti=t.getDay()===0?6:t.getDay()-1,tn=FULL_WEEKDAYS[ti],tmn=FULL_WEEKDAYS[(ti+1)%7];data.plans.forEach(p=>{if(p.days.includes(tn))n.push({id:`today-${p.id}`,type:"training",title:"Training heute! 💪",body:`${p.name} steht heute an!`,read:false,ts:Date.now()-3e5});if(p.days.includes(tmn))n.push({id:`tmrw-${p.id}`,type:"reminder",title:"Training morgen 📅",body:`${p.name} steht morgen auf dem Plan!`,read:false,ts:Date.now()-36e5});});const last=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];if(last){const d=Math.floor((t-new Date(last.date))/864e5);if(d>=3)n.push({id:"rest",type:"warning",title:"Lange Pause 😴",body:`Letztes Training vor ${d} Tagen!`,read:false,ts:Date.now()-18e5});}if(data.workouts.length>=5)n.push({id:`mile-${data.workouts.length}`,type:"achievement",title:"Meilenstein 🏆",body:`${data.workouts.length} Trainings – weiter so!`,read:true,ts:Date.now()-864e5});return n;}
+let _chartId=0;
+function LineChart({points,color="#FF6B35",height=80}){
+  const id=useRef(`lc${++_chartId}`).current;
+  if(!points||points.length<2)return<div style={{color:"#555",fontSize:13,padding:"20px 0",textAlign:"center"}}>Noch nicht genug Daten</div>;
+  const W=500,H=height,pad=12;
+  const vals=points.map(v=>isFinite(v)?v:0);
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+  const xs=vals.map((_,i)=>pad+(i/(vals.length-1))*(W-pad*2));
+  const ys=vals.map(v=>H-pad-((v-mn)/rng)*(H-pad*2));
+  const d=xs.map((x,i)=>`${i===0?"M":"L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ");
+  const area=`${d} L${xs[xs.length-1].toFixed(1)},${H} L${xs[0].toFixed(1)},${H} Z`;
+  return(
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height,display:"block"}} preserveAspectRatio="none">
+      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.25"/><stop offset="100%" stopColor={color} stopOpacity="0"/></linearGradient></defs>
+      <path d={area} fill={`url(#${id})`}/>
+      <path d={d} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      {xs.map((x,i)=><circle key={i} cx={x.toFixed(1)} cy={ys[i].toFixed(1)} r="4" fill={color} stroke="#111114" strokeWidth="2"/>)}
+    </svg>
+  );
+}
+function BarChart({bars,color="#FF6B35",height=90}){
+  if(!bars||!bars.length)return null;
+  const W=500,H=height,pad=4,gap=6;
+  const mx=Math.max(...bars.map(b=>b.v),1);
+  const bw=(W-pad*2-gap*(bars.length-1))/bars.length;
+  return(
+    <svg viewBox={`0 0 ${W} ${H+20}`} style={{width:"100%",height:H+20,display:"block"}}>
+      {bars.map((b,i)=>{
+        const bh=b.v>0?Math.max((b.v/mx)*(H-pad),4):0;
+        const x=pad+i*(bw+gap),y=H-bh;
+        return(<g key={i}><rect x={x} y={y} width={bw} height={bh} rx="4" fill={color} opacity="0.82"/><text x={x+bw/2} y={H+15} textAnchor="middle" fontSize="11" fill="#555">{b.l}</text></g>);
+      })}
+    </svg>
+  );
+}
+function DonutChart({value,max,color="#FF6B35",size=80,label=""}){const r=30,circ=2*Math.PI*r,pct=Math.min(value/Math.max(max,1),1),dash=pct*circ;return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><svg width={size} height={size} viewBox="0 0 80 80"><circle cx="40" cy="40" r={r} fill="none" stroke="#1E1E24" strokeWidth="8"/><circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="8" strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 40 40)" style={{transition:"stroke-dasharray 0.5s"}}/><text x="40" y="44" textAnchor="middle" fontSize="12" fontWeight="800" fill="#F0EDE8" fontFamily="Syne,sans-serif">{Math.round(pct*100)}%</text></svg>{label&&<div style={{fontSize:10,color:"#666",textAlign:"center",maxWidth:70}}>{label}</div>}</div>);}
+const COMMON_FOODS=[{name:"Hähnchenbrust (100g)",calories:165,protein:31,carbs:0,fat:3.6},{name:"Reis gekocht (100g)",calories:130,protein:2.7,carbs:28,fat:0.3},{name:"Ei",calories:78,protein:6,carbs:0.6,fat:5},{name:"Haferflocken (100g)",calories:371,protein:13,carbs:58,fat:7},{name:"Banane",calories:89,protein:1.1,carbs:23,fat:0.3},{name:"Magerquark (100g)",calories:59,protein:12,carbs:4,fat:0.3},{name:"Protein Shake",calories:120,protein:25,carbs:3,fat:1.5},{name:"Thunfisch Dose (100g)",calories:116,protein:26,carbs:0,fat:1},{name:"Vollkornbrot (Scheibe)",calories:81,protein:4,carbs:15,fat:1},{name:"Mandeln (30g)",calories:174,protein:6,carbs:6,fat:15},{name:"Lachs (100g)",calories:208,protein:20,carbs:0,fat:13},{name:"Süßkartoffel (100g)",calories:86,protein:1.6,carbs:20,fat:0.1},{name:"Griechischer Joghurt",calories:97,protein:9,carbs:6,fat:5},{name:"Avocado (½)",calories:120,protein:1.5,carbs:6,fat:11}];
+function FitForge(){
+  const [data,setData]=useState(defaultData);
+  const [user,setUser]=useState(defaultUser);
+  const [prs,setPrs]=useState(defaultPRs);
+  const [nutrition,setNutrition]=useState({});
+  const [loaded,setLoaded]=useState(false);
+  const [view,setView]=useState("dashboard");
+  const [animK,setAnimK]=useState(0);
+  const [logModal,setLogModal]=useState(false);
+  const [planModal,setPlanModal]=useState(false);
+  const [editPlan,setEditPlan]=useState(null);
+  const [profileOpen,setProfileOpen]=useState(false);
+  const [notifOpen,setNotifOpen]=useState(false);
+  const [selWO,setSelWO]=useState(null);
+  const [toast,setToast]=useState(null);
+  const [notifs,setNotifs]=useState([]);
+
+  // ── Load initial data from Firestore ──────────────────────────────────────
+  useEffect(()=>{
+    Promise.all([
+      fbGet("data", defaultData),
+      fbGet("user", defaultUser),
+      fbGet("prs",  defaultPRs),
+      fbGet("nutrition", {}),
+    ]).then(([d,u,p,n])=>{
+      setData(d); setUser(u); setPrs(p); setNutrition(n);
+      setLoaded(true);
+    });
+  },[]);
+
+  // ── Sync to Firestore on every change (debounced 800ms) ───────────────────
+  const debRef=useRef({});
+  const syncFb=(key,val)=>{
+    clearTimeout(debRef.current[key]);
+    debRef.current[key]=setTimeout(()=>fbSet(key,val),800);
+  };
+  useEffect(()=>{if(loaded)syncFb("data",data);},[data,loaded]);
+  useEffect(()=>{if(loaded)syncFb("user",user);},[user,loaded]);
+  useEffect(()=>{if(loaded)syncFb("prs",prs);},[prs,loaded]);
+  useEffect(()=>{if(loaded)syncFb("nutrition",nutrition);},[nutrition,loaded]);
+
+  useEffect(()=>{setAnimK(k=>k+1);},[view]);
+  useEffect(()=>{
+    const gen=genNotifs(data,user);
+    const stored=notifs.length?notifs:[];
+    const ids=new Set(stored.map(n=>n.id));
+    const merged=[...gen.filter(g=>!ids.has(g.id)),...stored].slice(0,20);
+    setNotifs(merged);
+  },[data.plans.length,data.workouts.length]);
+
+  const unread=notifs.filter(n=>!n.read).length;
+  const markAll=()=>setNotifs(n=>n.map(x=>({...x,read:true})));
+  const markRead=id=>setNotifs(n=>n.map(x=>x.id===id?{...x,read:true}:x));
+  const delNotif=id=>setNotifs(n=>n.filter(x=>x.id!==id));
+
+  if(!loaded) return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0D0D0F",flexDirection:"column",gap:16}}>
+      <div style={{width:40,height:40,border:"3px solid #FF6B35",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <div style={{color:"#666",fontSize:14,fontFamily:"'DM Sans',sans-serif"}}>Verbinde mit Firebase...</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
+    </div>
+  );
+  const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3500);};
+  const closeAll=()=>{setProfileOpen(false);setNotifOpen(false);};
+  const totalVol=data.workouts.reduce((a,w)=>a+w.exercises.reduce((b,e)=>b+e.sets.reduce((c,s)=>c+s.weight*s.reps,0),0),0);
+  const thisWeek=data.workouts.filter(w=>new Date(w.date)>=new Date(Date.now()-7*864e5));
+  const streak=Math.min(thisWeek.length,7);
+  const savePR=(exName,weight,reps)=>{const k=exName.toLowerCase().trim(),ex=prs[k],nv=weight*reps,ov=ex?(ex.weight*ex.reps):0;if(nv>ov){setPrs(p=>({...p,[k]:{name:exName,weight,reps,date:todayStr()}}));showToast(`🏆 Neuer PR: ${exName} – ${weight}kg × ${reps}!`);}};
+  const getPR=n=>prs[n.toLowerCase().trim()];
+  const today=todayStr();
+  const todayNut=nutrition[today]||{calories:0,protein:0,carbs:0,fat:0,meals:[]};
+  return(
+    <div style={s.root}><style>{css}</style>
+      <aside style={s.sidebar}>
+        <div style={s.logo}><span style={{color:"#FF6B35",display:"flex"}}>{IC.bolt}</span><span style={s.logoTxt}>FitForge</span></div>
+        <nav style={s.nav}>
+          {[["dashboard","Dashboard",IC.dashboard],["plans","Trainingspläne",IC.plans],["log","Training loggen",IC.log],["history","Verlauf",IC.history],["stats","Statistiken",IC.stats],["nutrition","Ernährung",IC.nutrition],["prs","Bestleistungen",IC.trophy],["docs","Dokumente",IC.docs]].map(([id,label,icon])=>(
+            <button key={id} style={{...s.navItem,...(view===id?s.navOn:{})}} onClick={()=>{setView(id);closeAll();}}><span style={{display:"flex",flexShrink:0}}>{icon}</span><span>{label}</span></button>
+          ))}
+        </nav>
+        <div style={{paddingTop:20}}><div style={s.streakCard}><span style={{color:"#fff",display:"flex"}}>{IC.fire}</span><div><div style={s.streakN}>{streak} Tage</div><div style={s.streakL}>Diese Woche</div></div></div></div>
+      </aside>
+      <main style={s.main}>
+        <div style={s.topBar}>
+          <div style={s.topGreet}>{user.firstName?`Hey, ${user.firstName}! 👋`:"Hey, Athlet! 👋"}</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{position:"relative"}}>
+              <button className="iconBtn" style={{...s.iconCircle,...(notifOpen?s.iconOn:{})}} onClick={()=>{setNotifOpen(o=>!o);setProfileOpen(false);}}>
+                {IC.bell}{unread>0&&<span style={s.badge}>{unread}</span>}
+              </button>
+              {notifOpen&&<div style={{...s.dropdown,width:350}} className="dropIn" onClick={e=>e.stopPropagation()}>
+                <div style={s.ddHead}><span style={s.ddTitle}>Benachrichtigungen</span>{unread>0&&<button className="markAllBtn" onClick={markAll}>Alle lesen</button>}</div>
+                <div style={{maxHeight:320,overflowY:"auto"}}>
+                  {!notifs.length&&<div style={{padding:"36px 18px",textAlign:"center",color:"#555",fontSize:13}}>Alles erledigt 🎉</div>}
+                  {notifs.map(n=>(<div key={n.id} style={{...s.nRow,...(n.read?{}:s.nRowU)}} className="notifRow" onClick={()=>markRead(n.id)}>
+                    <div style={{width:32,height:32,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0,background:"#1A1A1F"}}>{{training:"💪",reminder:"📅",warning:"⚠️",achievement:"🏆"}[n.type]||"🔔"}</div>
+                    <div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,fontSize:12}}>{n.title}</div><div style={{color:"#888",fontSize:11,marginTop:2}}>{n.body}</div><div style={{color:"#555",fontSize:10,marginTop:2}}>{timeAgo(n.ts)}</div></div>
+                    {!n.read&&<div style={{width:7,height:7,borderRadius:"50%",background:"#FF6B35",flexShrink:0,marginTop:4}}/>}
+                    <button style={{background:"transparent",border:"none",color:"#444",cursor:"pointer",padding:3,display:"flex"}} onClick={e=>{e.stopPropagation();delNotif(n.id);}}>{IC.x}</button>
+                  </div>))}
+                </div>
+                {user.notificationsEnabled&&<div style={{padding:"10px 16px",background:"#0F0F11",borderTop:"1px solid #1E1E24",fontSize:11,color:"#666"}}>🔔 Erinnerungen um {user.reminderTime} Uhr</div>}
+              </div>}
+            </div>
+            <div style={{position:"relative"}}>
+              <button style={{...s.avatarBtn,...(profileOpen?s.avatarOn:{})}} onClick={()=>{setProfileOpen(o=>!o);setNotifOpen(false);}}>
+                {user.avatar?<img src={user.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={s.initials}>{getInitials(user)}</span>}
+              </button>
+              {profileOpen&&<div style={{...s.dropdown,width:250}} className="dropIn" onClick={e=>e.stopPropagation()}>
+                <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 18px"}}>
+                  <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#FF6B35,#FF8C60)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+                    {user.avatar?<img src={user.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<span style={{fontFamily:"'Syne',sans-serif",fontSize:15,fontWeight:800,color:"#fff"}}>{getInitials(user)}</span>}
+                  </div>
+                  <div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14}}>{user.firstName||user.lastName?`${user.firstName} ${user.lastName}`.trim():"Kein Name"}</div><div style={{color:"#666",fontSize:11,marginTop:2}}>{user.email||"Keine E-Mail"}</div><div style={{color:"#FF6B35",fontSize:10,fontWeight:600,marginTop:2}}>{user.goal}</div></div>
+                </div>
+                <div style={{height:1,background:"#1E1E24",margin:"0 16px"}}/>
+                <div style={{display:"flex",padding:"12px 16px",gap:14}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:2}}><span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14}}>{data.workouts.length}</span><span style={{color:"#666",fontSize:10}}>Trainings</span></div>
+                  {user.weight&&<div style={{display:"flex",flexDirection:"column",gap:2}}><span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14}}>{user.weight}kg</span><span style={{color:"#666",fontSize:10}}>Gewicht</span></div>}
+                </div>
+                <div style={{height:1,background:"#1E1E24",margin:"0 16px"}}/>
+                <button className="profEditBtn" style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"transparent",border:"none",color:"#aaa",cursor:"pointer",padding:"12px 16px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}} onClick={()=>{setProfileOpen(false);setView("profile");}}>
+                  {IC.edit} Profil bearbeiten
+                </button>
+              </div>}
+            </div>
+          </div>
+        </div>
+        {(profileOpen||notifOpen)&&<div style={s.veil} onClick={closeAll}/>}
+        {toast&&<div style={{...s.toast,...(toast.type==="error"?s.toastErr:{})}} className="dropIn">{toast.type==="success"?IC.check:IC.x} {toast.msg}</div>}
+        <div key={animK} className="pageEnter">
+          {view==="dashboard"&&<Dashboard data={data} user={user} onLog={()=>setLogModal(true)} onView={setView} streak={streak} totalVol={totalVol} thisWeek={thisWeek} todayNut={todayNut}/>}
+          {view==="plans"&&<Plans data={data} setData={setData} onNew={()=>setPlanModal(true)} onEdit={p=>{setEditPlan(p);setPlanModal(true);}} notify={showToast}/>}
+          {view==="log"&&<LogWorkout data={data} setData={setData} notify={showToast} prs={prs} onSavePR={savePR}/>}
+          {view==="history"&&<History data={data} setData={setData} selWO={selWO} setSelWO={setSelWO} notify={showToast}/>}
+          {view==="stats"&&<Stats data={data} prs={prs} nutrition={nutrition} user={user}/>}
+          {view==="nutrition"&&<Nutrition nutrition={nutrition} setNutrition={setNutrition} user={user} notify={showToast}/>}
+          {view==="prs"&&<PRPage prs={prs} setPrs={setPrs} notify={showToast}/>}
+          {view==="profile"&&<ProfilePage user={user} setUser={setUser} notify={showToast}/>}
+          {view==="docs"&&<DocsPage notify={showToast}/>}
+        </div>
+      </main>
+      {logModal&&<QuickLogModal data={data} setData={setData} onClose={()=>setLogModal(false)} notify={showToast}/>}
+      {planModal&&<PlanModal data={data} setData={setData} editPlan={editPlan} onClose={()=>{setPlanModal(false);setEditPlan(null);}} notify={showToast}/>}
+    </div>
+  );
+}
+function Dashboard({data,user,onLog,onView,streak,totalVol,thisWeek,todayNut}){
+  const last=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+  const today=new Date(),tn=FULL_WEEKDAYS[today.getDay()===0?6:today.getDay()-1];
+  const todayPlan=data.plans.find(p=>p.days.includes(tn));
+  const calGoal=user.calorieGoal||2500,protGoal=user.proteinGoal||150;
+  return(<div style={s.page}>
+    <div style={s.hero}><img src="https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80" alt="gym" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/><div style={{position:"absolute",inset:0,background:"linear-gradient(120deg,rgba(0,0,0,0.85) 0%,rgba(0,0,0,0.3) 100%)"}}/>
+      <div style={{position:"absolute",inset:0,padding:40,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+        <p style={{color:"rgba(255,255,255,0.7)",margin:"0 0 8px",fontSize:14}}>{user.firstName?`Bereit, ${user.firstName}? 🔥`:"Guten Tag 👋"}</p>
+        <h1 style={{fontFamily:"'Syne',sans-serif",fontSize:40,fontWeight:800,margin:"0 0 14px",lineHeight:1.1,color:"#fff"}}>Bereit zum<br/>Trainieren?</h1>
+        {todayPlan&&<div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.12)",backdropFilter:"blur(12px)",borderRadius:20,padding:"6px 14px",fontSize:13,color:"#fff",marginBottom:18,width:"fit-content"}}><span style={{width:8,height:8,borderRadius:"50%",background:todayPlan.color,display:"inline-block"}}/> Heute: {todayPlan.name}</div>}
+        <button style={s.heroBtn} onClick={onLog}>{IC.plus} Training starten</button>
+      </div>
+    </div>
+    <div style={s.statsRow}>{[[data.workouts.length,"Trainings",IC.dumbbell,"#FF6B35"],[thisWeek.length,"Diese Woche",IC.fire,"#FFD166"],[`${streak}🔥`,"Streak",IC.trophy,"#00D9C0"],[`${Math.round(totalVol/1000)}k kg`,"Volumen",IC.bolt,"#A78BFA"]].map(([v,l,ic,c],i)=>(
+      <div key={i} style={s.statCard} className="statCard"><div style={{color:c,display:"flex",marginBottom:10}}>{ic}</div><div style={s.statV}>{v}</div><div style={s.statL}>{l}</div></div>
+    ))}</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:28}}>
+      <div style={s.card}>
+        <h2 style={{...s.secTitle,marginBottom:14}}>Diese Woche</h2>
+        <div style={s.weekGrid}>{WEEKDAYS.map((day,i)=>{const full=FULL_WEEKDAYS[i],done=thisWeek.some(w=>{const d=new Date(w.date);return(d.getDay()===0?6:d.getDay()-1)===i;}),isToday=(today.getDay()===0?6:today.getDay()-1)===i,hasPlan=data.plans.some(p=>p.days.includes(full));return(<div key={day} style={{...s.dayCell,...(done?s.dayCellDone:{}),...(isToday?s.dayCellToday:{})}}><span style={{fontSize:10,fontWeight:600,color:"#888"}}>{day}</span>{done&&<span style={{color:"#FF6B35",display:"flex"}}>{IC.check}</span>}{!done&&hasPlan&&<span style={{width:5,height:5,borderRadius:"50%",background:"#333"}}/>}</div>);})}</div>
+      </div>
+      <div style={s.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><h2 style={s.secTitle}>Ernährung heute</h2></div>
+        <div style={{display:"flex",justifyContent:"space-around",alignItems:"center"}}>
+          <DonutChart value={todayNut.calories} max={calGoal} color="#FF6B35" size={68} label={`${todayNut.calories} kcal`}/>
+          <DonutChart value={todayNut.protein||0} max={protGoal} color="#00D9C0" size={68} label={`${todayNut.protein||0}g Protein`}/>
+          <DonutChart value={todayNut.carbs||0} max={Math.round(calGoal*0.5/4)} color="#FFD166" size={68} label={`${todayNut.carbs||0}g Carbs`}/>
+          <DonutChart value={todayNut.fat||0} max={Math.round(calGoal*0.3/9)} color="#A78BFA" size={68} label={`${todayNut.fat||0}g Fett`}/>
+        </div>
+      </div>
+    </div>
+    {last&&(<div><h2 style={s.secTitle}>Letztes Training</h2><div style={s.recentCard} className="recentCard" onClick={()=>onView("history")}><div style={{flex:1}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:700,marginBottom:7}}>{last.name}</div><div style={{display:"flex",gap:4,color:"#666",fontSize:13,alignItems:"center"}}>{IC.clock} {last.duration} Min · {last.exercises.length} Übungen · {fmtDate(last.date)}</div>{last.note&&<div style={{marginTop:8,color:"#aaa",fontSize:13,fontStyle:"italic"}}>„{last.note}"</div>}</div><div style={{fontSize:20,color:"#444"}}>→</div></div></div>)}
+  </div>);}
+function Stats({data,prs,nutrition,user}){
+  const [range,setRange]=useState(30);
+  const [err,setErr]=useState(null);
+  const safeW=Array.isArray(data?.workouts)?data.workouts:[];
+  const safePrs=prs&&typeof prs==="object"?prs:{};
+  const safeNut=nutrition&&typeof nutrition==="object"?nutrition:{};
+  const cutoff=new Date(Date.now()-range*864e5);
+  const filtered=safeW.filter(w=>{try{return new Date(w.date)>=cutoff;}catch{return false;}}).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const safeVol=w=>{try{return(w.exercises||[]).reduce((a,e)=>a+(e.sets||[]).reduce((b,s)=>b+(+s.weight||0)*(+s.reps||0),0),0);}catch{return 0;}};
+  const volData=filtered.map(w=>safeVol(w));
+  const durData=filtered.map(w=>isFinite(w.duration)?+w.duration:0);
+  const wpw=Array.from({length:8},(_,i)=>{const ws=new Date(Date.now()-(7-i)*7*864e5),we=new Date(Date.now()-(6-i)*7*864e5);return{v:safeW.filter(w=>{try{const d=new Date(w.date);return d>=ws&&d<we;}catch{return false;}}).length,l:`W${i+1}`};});
+  const calTrend=Array.from({length:14},(_,i)=>{const d=new Date(Date.now()-(13-i)*864e5).toISOString().split("T")[0];const v=safeNut[d]?.calories;return isFinite(v)?+v:0;});
+  const allEx=safeW.flatMap(w=>(w.exercises||[]).map(e=>String(e.name||"").toLowerCase()));
+  const groups={Push:["bankdrücken","schulterdrücken","trizeps","dips"],Pull:["klimmzüge","rudern","bizeps","latzug"],Legs:["kniebeugen","beinpresse","kreuzheben","ausfallschritte"],Core:["planks","crunches","sit-ups"]};
+  const gc=Object.entries(groups).map(([name,exs])=>({name,count:allEx.filter(n=>exs.some(e=>n.includes(e))).length}));
+  const gcMax=Math.max(...gc.map(g=>g.count),1);
+  const totalW=safeW.length,totalD=safeW.reduce((a,w)=>a+(isFinite(w.duration)?+w.duration:0),0),totalVK=Math.round(safeW.reduce((a,w)=>a+safeVol(w),0)/1000),avgD=totalW?Math.round(totalD/totalW):0,prC=Object.keys(safePrs).length;
+  const clrs=["#FF6B35","#00D9C0","#A78BFA","#FFD166"];
+  return(<div style={s.page}>
+    <div style={s.pageHead}><div><h1 style={s.pageTitle}>Statistiken</h1><p style={s.pageSub}>Dein Fortschritt auf einen Blick</p></div><div style={{display:"flex",gap:8}}>{[7,30,90].map(d=><button key={d} style={{...s.secBtn,padding:"7px 14px",fontSize:12,...(range===d?{background:"#FF6B35",color:"#fff",borderColor:"#FF6B35"}:{})}} onClick={()=>setRange(d)}>{d}T</button>)}</div></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:14,marginBottom:22}}>
+      {[[totalW,"Trainings","#FF6B35"],[`${totalD}min`,"Gesamt-Zeit","#00D9C0"],[`${totalVK}k kg`,"Volumen","#A78BFA"],[`${avgD}min`,"Ø Dauer","#FFD166"],[prC,"PRs","#06D6A0"]].map(([v,l,c],i)=>(
+        <div key={i} style={{...s.card,padding:"18px",textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:11,color:"#666",marginTop:5}}>{l}</div></div>
+      ))}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div style={s.card}><h3 style={{...s.cardTitle,marginBottom:14}}>Trainingsvolumen (kg)</h3><LineChart points={volData} color="#FF6B35" height={100}/></div>
+      <div style={s.card}><h3 style={{...s.cardTitle,marginBottom:14}}>Trainingsdauer (min)</h3><LineChart points={durData} color="#00D9C0" height={100}/></div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div style={s.card}><h3 style={{...s.cardTitle,marginBottom:14}}>Trainings pro Woche</h3><BarChart bars={wpw} color="#A78BFA" height={90}/></div>
+      <div style={s.card}><h3 style={{...s.cardTitle,marginBottom:14}}>Kalorien – 14 Tage</h3><LineChart points={calTrend} color="#FFD166" height={100}/></div>
+    </div>
+    <div style={s.card}>
+      <h3 style={{...s.cardTitle,marginBottom:16}}>Muskelgruppen-Verteilung</h3>
+      <div style={{display:"flex",gap:14,alignItems:"flex-end",padding:"4px 0"}}>
+        {gc.map((g,i)=>{const pct=g.count/gcMax;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:7}}><div style={{width:"100%",background:"#1A1A1F",borderRadius:7,height:90,display:"flex",alignItems:"flex-end",overflow:"hidden"}}><div style={{width:"100%",background:clrs[i],height:`${Math.max(pct*100,2)}%`,transition:"height 0.5s"}}/></div><div style={{fontSize:12,fontWeight:700}}>{g.name}</div><div style={{fontSize:11,color:"#666"}}>{g.count}×</div></div>);})}
+      </div>
+    </div>
+    {prC>0&&<div style={{...s.card,marginTop:16}}><h3 style={{...s.cardTitle,marginBottom:14}}>Persönliche Bestleistungen</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>{Object.values(safePrs).map((pr,i)=>(<div key={i} style={{background:"#0D0D0F",borderRadius:11,padding:"13px",border:"1px solid #1E1E24"}}><div style={{fontSize:16,marginBottom:3}}>🏆</div><div style={{fontWeight:700,fontSize:12,marginBottom:3}}>{pr.name}</div><div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:"#FFD166"}}>{pr.weight}kg</div><div style={{color:"#888",fontSize:11}}>{pr.reps} Wdh.</div></div>))}</div></div>}
+  </div>);}
+function Nutrition({nutrition,setNutrition,user,notify}){
+  const [selDate,setSelDate]=useState(todayStr());
+  const [showAdd,setShowAdd]=useState(false);
+  const [meal,setMeal]=useState({name:"",calories:"",protein:"",carbs:"",fat:"",mealType:"Frühstück"});
+  const [search,setSearch]=useState("");
+  const dayData=nutrition[selDate]||{calories:0,protein:0,carbs:0,fat:0,meals:[]};
+  const calGoal=user.calorieGoal||2500,protGoal=user.proteinGoal||150,carbGoal=Math.round(calGoal*0.5/4),fatGoal=Math.round(calGoal*0.3/9);
+  const addMeal=()=>{if(!meal.name||!meal.calories)return notify("Name und Kalorien ausfüllen","error");const entry={...meal,id:Date.now(),calories:parseInt(meal.calories)||0,protein:parseFloat(meal.protein)||0,carbs:parseFloat(meal.carbs)||0,fat:parseFloat(meal.fat)||0};setNutrition(n=>{const d=n[selDate]||{calories:0,protein:0,carbs:0,fat:0,meals:[]};return{...n,[selDate]:{calories:d.calories+entry.calories,protein:d.protein+entry.protein,carbs:d.carbs+entry.carbs,fat:d.fat+entry.fat,meals:[...d.meals,entry]}};});notify(`${meal.name} hinzugefügt! ✅`);setMeal({name:"",calories:"",protein:"",carbs:"",fat:"",mealType:"Frühstück"});setShowAdd(false);};
+  const quickAdd=food=>{setNutrition(n=>{const d=n[selDate]||{calories:0,protein:0,carbs:0,fat:0,meals:[]};return{...n,[selDate]:{calories:d.calories+food.calories,protein:d.protein+food.protein,carbs:d.carbs+food.carbs,fat:d.fat+food.fat,meals:[...d.meals,{...food,id:Date.now(),mealType:"Sonstige"}]}};});notify(`${food.name} hinzugefügt!`);};
+  const delMeal=id=>{setNutrition(n=>{const d=n[selDate];if(!d)return n;const rm=d.meals.find(m=>m.id===id);if(!rm)return n;return{...n,[selDate]:{calories:Math.max(0,d.calories-rm.calories),protein:Math.max(0,d.protein-rm.protein),carbs:Math.max(0,d.carbs-rm.carbs),fat:Math.max(0,d.fat-rm.fat),meals:d.meals.filter(m=>m.id!==id)}};});notify("Eintrag gelöscht");};
+  const mealGroups=["Frühstück","Mittagessen","Abendessen","Snack","Sonstige"];
+  const filtered=COMMON_FOODS.filter(f=>f.name.toLowerCase().includes(search.toLowerCase()));
+  return(<div style={s.page}>
+    <div style={s.pageHead}><div><h1 style={s.pageTitle}>Ernährung</h1><p style={s.pageSub}>Kalorien & Makros tracken</p></div><div style={{display:"flex",gap:12,alignItems:"center"}}><input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)} style={{...s.inp,width:"auto",padding:"8px 12px"}}/><button style={s.primaryBtn} onClick={()=>setShowAdd(o=>!o)}>{IC.plus} Hinzufügen</button></div></div>
+    <div style={{...s.card,marginBottom:22}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h3 style={s.cardTitle}>Makros</h3><div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:"#FF6B35"}}>{dayData.calories}<span style={{fontSize:12,color:"#666",fontWeight:400}}> / {calGoal} kcal</span></div></div>
+      <div style={{height:9,background:"#1A1A1F",borderRadius:5,overflow:"hidden",marginBottom:18}}><div style={{height:"100%",width:`${Math.min(dayData.calories/calGoal*100,100)}%`,background:"#FF6B35",borderRadius:5,transition:"width 0.4s"}}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+        {[["Protein",dayData.protein||0,protGoal,"g","#00D9C0"],["Kohlenhydrate",dayData.carbs||0,carbGoal,"g","#FFD166"],["Fett",dayData.fat||0,fatGoal,"g","#A78BFA"]].map(([label,val,goal,unit,color])=>(
+          <div key={label} style={{background:"#0D0D0F",borderRadius:11,padding:"13px"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}><span style={{fontSize:12,fontWeight:600,color}}>{label}</span><span style={{fontSize:11,color:"#666"}}>{Math.round(val)}/{goal}{unit}</span></div><div style={{height:5,background:"#1A1A1F",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(val/goal*100,100)}%`,background:color,borderRadius:3,transition:"width 0.4s"}}/></div></div>
+        ))}
+      </div>
+    </div>
+    {showAdd&&<div style={{...s.card,marginBottom:20,border:"1px solid #2A2A30"}} className="fadeIn">
+      <h3 style={{...s.cardTitle,marginBottom:16}}>Mahlzeit hinzufügen</h3>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:11,marginBottom:11}}>
+        <div style={s.fg}><label style={s.lbl}>Name</label><input style={s.inp} value={meal.name} onChange={e=>setMeal(m=>({...m,name:e.target.value}))} placeholder="z.B. Hähnchenbrust" autoFocus/></div>
+        <div style={s.fg}><label style={s.lbl}>Mahlzeit</label><select style={s.inp} value={meal.mealType} onChange={e=>setMeal(m=>({...m,mealType:e.target.value}))}>{mealGroups.map(mg=><option key={mg}>{mg}</option>)}</select></div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:14}}>
+        {[["Kalorien","calories","#FF6B35"],["Protein (g)","protein","#00D9C0"],["Carbs (g)","carbs","#FFD166"],["Fett (g)","fat","#A78BFA"]].map(([label,key,color])=>(
+          <div key={key} style={s.fg}><label style={{...s.lbl,color}}>{label}</label><input style={s.inp} type="number" value={meal[key]} onChange={e=>setMeal(m=>({...m,[key]:e.target.value}))} placeholder="0"/></div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:11}}><button style={s.secBtn} onClick={()=>setShowAdd(false)}>Abbrechen</button><button style={s.primaryBtn} onClick={addMeal}>Hinzufügen</button></div>
+    </div>}
+    {mealGroups.map(group=>{const meals=(dayData.meals||[]).filter(m=>m.mealType===group);if(!meals.length)return null;return(<div key={group} style={{marginBottom:18}}><h3 style={{fontSize:13,fontWeight:700,color:"#888",marginBottom:9,textTransform:"uppercase",letterSpacing:"0.5px"}}>{group}</h3><div style={{display:"flex",flexDirection:"column",gap:7}}>{meals.map(m=>(<div key={m.id} style={{...s.card,padding:"12px 16px",display:"flex",alignItems:"center",gap:14}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,marginBottom:3}}>{m.name}</div><div style={{display:"flex",gap:10,fontSize:11,color:"#888"}}><span style={{color:"#FF6B35"}}>{m.calories} kcal</span><span style={{color:"#00D9C0"}}>{m.protein}g P</span><span style={{color:"#FFD166"}}>{m.carbs}g C</span><span style={{color:"#A78BFA"}}>{m.fat}g F</span></div></div><button style={{background:"transparent",border:"none",color:"#444",cursor:"pointer",padding:5,display:"flex",borderRadius:6}} onClick={()=>delMeal(m.id)}>{IC.trash}</button></div>))}</div></div>);})}
+    {!(dayData.meals||[]).length&&!showAdd&&<div style={{textAlign:"center",padding:"36px 18px",color:"#555",background:"#111114",borderRadius:14,border:"1px solid #1E1E24"}}><div style={{fontSize:32,marginBottom:10}}>🥗</div><div style={{fontSize:13}}>Noch keine Mahlzeiten für diesen Tag.</div></div>}
+    <div style={{...s.card,marginTop:22}}><h3 style={{...s.cardTitle,marginBottom:14}}>Schnell hinzufügen</h3><input style={{...s.inp,marginBottom:12}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Lebensmittel suchen..."/><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:9}}>{filtered.map((food,i)=>(<div key={i} style={{background:"#0D0D0F",borderRadius:9,padding:"11px 13px",display:"flex",justifyContent:"space-between",alignItems:"center",border:"1px solid #1E1E24"}}><div><div style={{fontWeight:600,fontSize:12,marginBottom:2}}>{food.name}</div><div style={{fontSize:10,color:"#888"}}>{food.calories} kcal · {food.protein}g P</div></div><button style={{...s.primaryBtn,padding:"5px 10px",fontSize:11}} onClick={()=>quickAdd(food)}>{IC.plus}</button></div>))}</div></div>
+  </div>);}
+function Plans({data,setData,onNew,onEdit,notify}){
+  const del=id=>{setData(d=>({...d,plans:d.plans.filter(p=>p.id!==id)}));notify("Plan gelöscht");};
+  return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Trainingspläne</h1><p style={s.pageSub}>{data.plans.length} aktive Pläne</p></div><button style={s.primaryBtn} onClick={onNew}>{IC.plus} Neuer Plan</button></div>
+    <div style={s.plansGrid}>{data.plans.map(plan=>{const exs=plan.exercises.map(e=>typeof e==="string"?{name:e,photo:null}:e);return(<div key={plan.id} style={{...s.planCard,borderTopColor:plan.color}} className="planCard">
+      <div style={{width:42,height:42,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14,background:plan.color+"20",color:plan.color}}>{IC.dumbbell}</div>
+      <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:19,fontWeight:800,margin:"0 0 14px",letterSpacing:"-0.5px"}}>{plan.name}</h3>
+      <div style={{display:"flex",gap:5,marginBottom:14}}>{WEEKDAYS.map((d,i)=><span key={d} style={{...s.dayChip,...(plan.days.includes(FULL_WEEKDAYS[i])?{background:plan.color,color:"#fff"}:{})}}>{d}</span>)}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:12}}>{exs.slice(0,4).map((ex,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:7}}>{ex.photo?<img src={ex.photo} alt={ex.name} style={{width:24,height:24,borderRadius:5,objectFit:"cover",flexShrink:0}}/>:<div style={{width:24,height:24,borderRadius:5,background:"#1A1A1F",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#444"}}>{IC.image}</div>}<span style={{fontSize:11,color:"#aaa"}}>{ex.name}</span></div>))}{exs.length>4&&<span style={{fontSize:11,color:"#555",paddingLeft:31}}>+{exs.length-4} weitere</span>}</div>
+      <div style={{fontSize:11,color:"#555"}}>{data.workouts.filter(w=>w.planId===plan.id).length} Trainings</div>
+      <div style={{position:"absolute",top:13,right:13,display:"flex",gap:5}}><button className="cardIconBtn" style={s.cardIconBtn} onClick={()=>onEdit({...plan,exercises:exs})}>{IC.edit}</button><button className="cardIconBtn" style={{...s.cardIconBtn,color:"#EF476F88"}} onClick={()=>del(plan.id)}>{IC.trash}</button></div>
+    </div>);})}
+    <div style={s.newPlanCard} onClick={onNew} className="planCard"><div style={{color:"#444",display:"flex"}}>{IC.plus}</div><span style={{color:"#666",fontSize:13}}>Neuen Plan erstellen</span></div></div>
+  </div>);}
+function LogWorkout({data,setData,notify,prs,onSavePR}){
+  const [step,setStep]=useState(1);
+  const [form,setForm]=useState({planId:data.plans[0]?.id||null,name:"",date:todayStr(),duration:"",note:"",photo:null,exercises:[]});
+  const [newEx,setNewEx]=useState("");
+  const fileRef=useRef();
+  const addEx=()=>{if(!newEx.trim())return;setForm(f=>({...f,exercises:[...f.exercises,{name:newEx,sets:[{reps:"",weight:""}]}]}));setNewEx("");};
+  const addSet=ei=>setForm(f=>{const e=[...f.exercises];e[ei]={...e[ei],sets:[...e[ei].sets,{reps:"",weight:""}]};return{...f,exercises:e};});
+  const upd=(ei,si,k,v)=>setForm(f=>{const e=JSON.parse(JSON.stringify(f.exercises));e[ei].sets[si][k]=v;return{...f,exercises:e};});
+  const photoUp=e=>{const f=e.target.files[0];if(!f)return;readFile(f).then(d=>setForm(f2=>({...f2,photo:d})));};
+  const save=()=>{if(!form.name)return notify("Bitte Namen eingeben","error");if(!form.exercises.length)return notify("Mindestens eine Übung","error");const parsed=form.exercises.map(e=>({...e,sets:e.sets.map(s=>({reps:parseInt(s.reps)||0,weight:parseFloat(s.weight)||0}))}));parsed.forEach(ex=>{const best=ex.sets.reduce((b,s)=>s.weight*s.reps>b.weight*b.reps?s:b,{reps:0,weight:0});if(best.weight>0)onSavePR(ex.name,best.weight,best.reps);});setData(d=>({...d,workouts:[{id:Date.now(),...form,duration:parseInt(form.duration)||0,exercises:parsed},...d.workouts]}));notify("Training gespeichert! 💪");setForm({planId:data.plans[0]?.id||null,name:"",date:todayStr(),duration:"",note:"",photo:null,exercises:[]});setStep(1);};
+  return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Training loggen</h1><p style={s.pageSub}>Schritt {step} von 3</p></div></div>
+    <div style={s.stepBar}>{[1,2,3].map(n=>(<div key={n} style={{display:"flex",alignItems:"center",flex:1}}><div style={{...s.stepDot,...(step>=n?s.stepOn:{})}}>{step>n?IC.check:n}</div>{n<3&&<div style={{flex:1,height:2,background:step>n?"#FF6B35":"#1E1E24",transition:"background 0.3s"}}/>}</div>))}</div>
+    <div style={s.logCard}>
+      {step===1&&<div className="fadeIn"><h3 style={s.logTitle}>Grundinfos</h3><div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Name</label><input style={s.inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Push Day A"/></div><div style={s.fg}><label style={s.lbl}>Datum</label><input style={s.inp} type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Dauer (Min)</label><input style={s.inp} type="number" value={form.duration} onChange={e=>setForm(f=>({...f,duration:e.target.value}))} placeholder="60"/></div><div style={s.fg}><label style={s.lbl}>Plan</label><select style={s.inp} value={form.planId||""} onChange={e=>setForm(f=>({...f,planId:parseInt(e.target.value)}))}><option value="">Kein Plan</option>{data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div><button style={s.primaryBtn} onClick={()=>setStep(2)}>Weiter →</button></div>}
+      {step===2&&<div className="fadeIn"><h3 style={s.logTitle}>Übungen</h3><div style={{display:"flex",gap:9,marginBottom:14}}><input style={{...s.inp,flex:1}} value={newEx} onChange={e=>setNewEx(e.target.value)} placeholder="Übung hinzufügen..." onKeyDown={e=>e.key==="Enter"&&addEx()}/><button style={s.addBtn} onClick={addEx}>{IC.plus}</button></div>
+        {form.exercises.map((ex,ei)=>{const pr=prs[ex.name.toLowerCase().trim()];return(<div key={ei} style={s.exBlock}><div style={{display:"flex",justifyContent:"space-between",marginBottom:10,alignItems:"center"}}><div><span style={{fontWeight:700,fontSize:14}}>{ex.name}</span>{pr&&<span style={{marginLeft:9,fontSize:10,color:"#FFD166",background:"#FFD16615",borderRadius:5,padding:"2px 7px"}}>🏆 {pr.weight}kg×{pr.reps}</span>}</div><button style={s.iconBtnS} onClick={()=>setForm(f=>({...f,exercises:f.exercises.filter((_,i)=>i!==ei)}))}>{IC.trash}</button></div><div style={s.setsH}><span>Satz</span><span>Wdh</span><span>Kg</span></div>{ex.sets.map((set,si)=>(<div key={si} style={s.setRow}><span style={s.setN}>{si+1}</span><input style={s.setInp} type="number" value={set.reps} onChange={e=>upd(ei,si,"reps",e.target.value)} placeholder="0"/><input style={s.setInp} type="number" value={set.weight} onChange={e=>upd(ei,si,"weight",e.target.value)} placeholder="0"/></div>))}<button style={s.addSetBtn} onClick={()=>addSet(ei)}>+ Satz</button></div>);})}
+        <div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={()=>setStep(1)}>← Zurück</button><button style={s.primaryBtn} onClick={()=>setStep(3)}>Weiter →</button></div></div>}
+      {step===3&&<div className="fadeIn"><h3 style={s.logTitle}>Notiz & Foto</h3><div style={s.fg}><label style={s.lbl}>Notiz</label><textarea style={{...s.inp,height:85,resize:"vertical"}} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="Wie lief das Training?"/></div><div style={s.fg}><label style={s.lbl}>Foto</label><div style={s.photoBox} onClick={()=>fileRef.current.click()}>{form.photo?<img src={form.photo} alt="w" style={{width:"100%",maxHeight:210,objectFit:"cover",display:"block"}}/>:<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:11,padding:38,color:"#555"}}>{IC.camera}<span>Foto hinzufügen</span></div>}</div><input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={photoUp}/></div><div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={()=>setStep(2)}>← Zurück</button><button style={{...s.primaryBtn,flex:1}} onClick={save}>💾 Speichern</button></div></div>}
+    </div></div>);}
+function History({data,setData,selWO,setSelWO,notify}){
+  const sorted=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const del=id=>{setData(d=>({...d,workouts:d.workouts.filter(w=>w.id!==id)}));setSelWO(null);notify("Training gelöscht");};
+  if(selWO){const w=data.workouts.find(x=>x.id===selWO);if(!w){setSelWO(null);return null;}const plan=data.plans.find(p=>p.id===w.planId),vol=w.exercises.reduce((a,e)=>a+e.sets.reduce((b,s)=>b+s.weight*s.reps,0),0);return(<div style={s.page} className="fadeIn"><button style={s.backBtn} onClick={()=>setSelWO(null)}>← Zurück</button><div style={s.wDetail}>{w.photo&&<img src={w.photo} alt="w" style={{width:"100%",height:210,objectFit:"cover",borderRadius:13,marginBottom:22}}/>}<h1 style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,margin:"0 0 8px"}}>{w.name}</h1><div style={{color:"#888",fontSize:13,display:"flex",gap:8,alignItems:"center",marginBottom:22}}>{new Date(w.date).toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long"})}{plan&&<span style={{borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,background:plan.color+"30",color:plan.color}}>· {plan.name}</span>}</div><div style={{display:"flex",background:"#0D0D0F",borderRadius:13,overflow:"hidden",marginBottom:22}}>{[[`${w.duration} min`,"Dauer"],[w.exercises.length,"Übungen"],[`${vol} kg`,"Volumen"]].map(([v,l],i)=>(<div key={i} style={{flex:1,padding:18,textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>{v}</div><div style={{fontSize:11,color:"#666",marginTop:3}}>{l}</div></div>))}</div>{w.note&&<div style={{color:"#aaa",fontStyle:"italic",fontSize:14,marginBottom:22,padding:14,background:"#0D0D0F",borderRadius:11}}>„{w.note}"</div>}{w.exercises.map((ex,i)=>(<div key={i} style={s.exBlock}><div style={{fontWeight:700,fontSize:14,marginBottom:10}}>{ex.name}</div><div style={s.setsH}><span>Satz</span><span>Wdh</span><span>Kg</span></div>{ex.sets.map((set,si)=><div key={si} style={s.setRow}><span style={s.setN}>{si+1}</span><span style={{background:"#1A1A1F",borderRadius:7,padding:"7px 9px",fontSize:12,textAlign:"center"}}>{set.reps}</span><span style={{background:"#1A1A1F",borderRadius:7,padding:"7px 9px",fontSize:12,textAlign:"center"}}>{set.weight}</span></div>)}</div>))}<button style={{background:"transparent",border:"1px solid #2A2A30",color:"#888",borderRadius:9,padding:"9px 18px",cursor:"pointer",display:"flex",gap:7,alignItems:"center",marginTop:18,fontFamily:"'DM Sans',sans-serif",fontSize:13}} onClick={()=>del(w.id)}>{IC.trash} Training löschen</button></div></div>);}
+  return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Verlauf</h1><p style={s.pageSub}>{data.workouts.length} Trainings</p></div></div>{!sorted.length&&<div style={{textAlign:"center",padding:"70px 18px",color:"#555"}}>Noch keine Trainings.</div>}<div style={{display:"flex",flexDirection:"column",gap:10}}>{sorted.map(w=>{const plan=data.plans.find(p=>p.id===w.planId),vol=w.exercises.reduce((a,e)=>a+e.sets.reduce((b,s)=>b+s.weight*s.reps,0),0);return(<div key={w.id} style={s.histCard} className="histCard" onClick={()=>setSelWO(w.id)}>{w.photo&&<img src={w.photo} alt="" style={{width:52,height:52,borderRadius:9,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1}}><div style={{fontWeight:700,fontSize:15,marginBottom:5}}>{w.name}</div><div style={{color:"#666",fontSize:12,display:"flex",gap:4}}><span>{fmtDate(w.date)}</span><span>· {w.duration} min</span><span>· {vol} kg</span></div>{plan&&<span style={{display:"inline-block",borderRadius:5,padding:"2px 9px",fontSize:11,fontWeight:600,marginTop:5,background:plan.color+"25",color:plan.color}}>{plan.name}</span>}</div><div style={{fontSize:17,color:"#444"}}>→</div></div>);})}</div></div>);}
+function PRPage({prs,setPrs,notify}){
+  const [exName,setExName]=useState(""),  [w,setW]=useState(""), [r,setR]=useState(""), [date,setDate]=useState(todayStr());
+  const entries=Object.entries(prs).sort((a,b)=>a[0].localeCompare(b[0]));
+  const save=()=>{if(!exName.trim()||!w||!r)return notify("Alle Felder ausfüllen","error");const key=exName.toLowerCase().trim();setPrs(p=>({...p,[key]:{name:exName.trim(),weight:parseFloat(w),reps:parseInt(r),date}}));notify(`PR für ${exName} gespeichert! 🏆`);setExName("");setW("");setR("");};
+  const del=key=>{setPrs(p=>{const n={...p};delete n[key];return n;});notify("PR gelöscht");};
+  return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Bestleistungen</h1><p style={s.pageSub}>Deine persönlichen Rekorde</p></div></div>
+    <div style={{...s.card,marginBottom:26}}><h3 style={{...s.cardTitle,marginBottom:14}}>Neuen PR eintragen</h3><div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:11,alignItems:"end"}}><div style={s.fg}><label style={s.lbl}>Übung</label><input style={s.inp} value={exName} onChange={e=>setExName(e.target.value)} placeholder="Bankdrücken" onKeyDown={e=>e.key==="Enter"&&save()}/></div><div style={s.fg}><label style={s.lbl}>Gewicht (kg)</label><input style={s.inp} type="number" value={w} onChange={e=>setW(e.target.value)} placeholder="100"/></div><div style={s.fg}><label style={s.lbl}>Wdh.</label><input style={s.inp} type="number" value={r} onChange={e=>setR(e.target.value)} placeholder="5"/></div><div style={s.fg}><label style={s.lbl}>Datum</label><input style={s.inp} type="date" value={date} onChange={e=>setDate(e.target.value)}/></div></div><button style={{...s.primaryBtn,marginTop:7}} onClick={save}>{IC.star} PR speichern</button></div>
+    {!entries.length&&<div style={{textAlign:"center",padding:"50px 18px",color:"#555",background:"#111114",borderRadius:14,border:"1px solid #1E1E24"}}><div style={{fontSize:36,marginBottom:10}}>🏆</div>Noch keine Bestleistungen.</div>}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:14}}>{entries.map(([key,pr])=>(<div key={key} style={{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:18,position:"relative"}} className="statCard"><div style={{fontSize:24,marginBottom:7}}>🏆</div><div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:800,marginBottom:5}}>{pr.name||key}</div><div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"#FFD166"}}>{pr.weight}<span style={{fontSize:13,color:"#888",fontWeight:400}}>kg</span></div><div style={{color:"#888",fontSize:12,marginTop:3}}>{pr.reps} Wdh.</div><div style={{color:"#555",fontSize:10,marginTop:3}}>{pr.date&&fmtDate(pr.date)}</div><button className="cardIconBtn" style={{...s.cardIconBtn,position:"absolute",top:11,right:11,color:"#EF476F88"}} onClick={()=>del(key)}>{IC.trash}</button></div>))}</div>
+  </div>);}
+function PlanModal({data,setData,editPlan,onClose,notify}){
+  const isEdit=!!editPlan;
+  const [form,setForm]=useState(isEdit?{...editPlan,exercises:editPlan.exercises.map(e=>typeof e==="string"?{name:e,photo:null}:e)}:{name:"",color:"#FF6B35",days:[],exercises:[]});
+  const [exInput,setExInput]=useState("");const fileRefs=useRef({});
+  const toggleDay=day=>setForm(f=>({...f,days:f.days.includes(day)?f.days.filter(d=>d!==day):[...f.days,day]}));
+  const addEx=()=>{if(!exInput.trim())return;setForm(f=>({...f,exercises:[...f.exercises,{name:exInput.trim(),photo:null}]}));setExInput("");};
+  const setExPhoto=async(idx,file)=>{if(!file)return;const d=await readFile(file);setForm(f=>{const e=[...f.exercises];e[idx]={...e[idx],photo:d};return{...f,exercises:e};});};
+  const save=()=>{if(!form.name)return notify("Bitte Namen eingeben","error");if(isEdit)setData(d=>({...d,plans:d.plans.map(p=>p.id===form.id?form:p)}));else setData(d=>({...d,plans:[...d.plans,{id:Date.now(),...form}]}));notify(isEdit?"Plan aktualisiert! ✅":"Plan erstellt! 🎉");onClose();};
+  return(<div style={s.overlay2} onClick={onClose}><div style={{...s.modal,maxWidth:560,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()} className="dropIn">
+    <h2 style={s.modalTitle}>{isEdit?"Plan bearbeiten":"Neuer Trainingsplan"}</h2>
+    <div style={s.fg}><label style={s.lbl}>Name</label><input style={s.inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Push Pull Legs" autoFocus/></div>
+    <div style={s.fg}><label style={s.lbl}>Farbe</label><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:38,height:38,borderRadius:9,background:form.color,border:"2px solid #3A3A40",flexShrink:0}}/><input type="color" value={form.color} onChange={e=>setForm(f=>({...f,color:e.target.value}))} style={{flex:1,height:38,borderRadius:9,border:"1px solid #2A2A30",background:"transparent",cursor:"pointer",padding:2}}/></div><div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:9}}>{["#FF6B35","#EF476F","#FFD166","#06D6A0","#00D9C0","#118AB2","#A78BFA","#F72585","#7209B7","#4361EE","#4CC9F0","#FF9F1C","#2EC4B6","#CBFF8C","#FF6B6B"].map(c=>(<div key={c} onClick={()=>setForm(f=>({...f,color:c}))} style={{width:22,height:22,borderRadius:"50%",background:c,cursor:"pointer",outline:form.color===c?`3px solid ${c}`:"none",outlineOffset:2}} className="colorSwatch"/>))}</div></div>
+    <div style={s.fg}><label style={s.lbl}>Trainingstage</label><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{FULL_WEEKDAYS.map((day,i)=><button key={day} onClick={()=>toggleDay(day)} style={{...s.dayToggle,...(form.days.includes(day)?{background:form.color,color:"#fff",borderColor:form.color}:{})}}>{WEEKDAYS[i]}</button>)}</div></div>
+    <div style={s.fg}><label style={s.lbl}>Übungen</label><div style={{display:"flex",gap:9,marginBottom:9}}><input style={{...s.inp,flex:1}} value={exInput} onChange={e=>setExInput(e.target.value)} placeholder="Übung hinzufügen..." onKeyDown={e=>e.key==="Enter"&&addEx()}/><button style={s.addBtn} onClick={addEx}>{IC.plus}</button></div><div style={{display:"flex",flexDirection:"column",gap:7}}>{form.exercises.map((ex,idx)=>(<div key={idx} style={{display:"flex",alignItems:"center",gap:9,background:"#0D0D0F",borderRadius:9,padding:"9px 11px"}}><div style={{position:"relative",flexShrink:0,cursor:"pointer"}} onClick={()=>fileRefs.current[idx]?.click()}>{ex.photo?<img src={ex.photo} alt={ex.name} style={{width:40,height:40,borderRadius:7,objectFit:"cover"}}/>:<div style={{width:40,height:40,borderRadius:7,background:"#1A1A1F",border:"1px dashed #3A3A40",display:"flex",alignItems:"center",justifyContent:"center",color:"#555"}}>{IC.camera}</div>}<input ref={el=>fileRefs.current[idx]=el} type="file" accept="image/*" style={{display:"none"}} onChange={e=>setExPhoto(idx,e.target.files[0])}/></div><input style={{flex:1,fontSize:15,fontWeight:600,background:"transparent",border:"none",borderBottom:"1px solid #2A2A30",color:"#F0EDE8",padding:"2px 4px",fontFamily:"'DM Sans',sans-serif",outline:"none"}} value={ex.name} onChange={e=>setForm(f=>{const ex=[...f.exercises];ex[idx]={...ex[idx],name:e.target.value};return{...f,exercises:ex};})} onFocus={e=>e.target.style.borderBottomColor="#FF6B35"} onBlur={e=>e.target.style.borderBottomColor="#2A2A30"}/><button style={{background:"transparent",border:"none",color:"#444",cursor:"pointer",display:"flex",padding:3}} onClick={()=>setForm(f=>({...f,exercises:f.exercises.filter((_,i)=>i!==idx)}))}>{IC.x}</button></div>))}</div></div>
+    <div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={onClose}>Abbrechen</button><button style={{...s.primaryBtn,flex:1}} onClick={save}>{isEdit?"Speichern":"Plan erstellen"}</button></div>
+  </div></div>);}
+function QuickLogModal({data,setData,onClose,notify}){const [name,setName]=useState(""), [dur,setDur]=useState("");const save=()=>{if(!name)return notify("Name fehlt","error");setData(d=>({...d,workouts:[{id:Date.now(),planId:null,name,date:todayStr(),duration:parseInt(dur)||0,note:"",photo:null,exercises:[]},...d.workouts]}));notify("Gestartet! 🚀");onClose();};return(<div style={s.overlay2} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()} className="dropIn"><h2 style={s.modalTitle}>Schnell-Log</h2><div style={s.fg}><label style={s.lbl}>Name</label><input style={s.inp} value={name} onChange={e=>setName(e.target.value)} placeholder="Training Name" autoFocus/></div><div style={s.fg}><label style={s.lbl}>Dauer (Min)</label><input style={s.inp} type="number" value={dur} onChange={e=>setDur(e.target.value)} placeholder="60"/></div><div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={onClose}>Abbrechen</button><button style={{...s.primaryBtn,flex:1}} onClick={save}>Speichern</button></div></div></div>);}
+function ProfilePage({user,setUser,notify}){const [form,setForm]=useState({...user});const fileRef=useRef();const handleAv=e=>{const f=e.target.files[0];if(!f)return;readFile(f).then(d=>setForm(f2=>({...f2,avatar:d})));};const save=()=>{setUser(form);notify("Profil gespeichert! ✅");};return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Mein Profil</h1><p style={s.pageSub}>Daten & Einstellungen</p></div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:22}}>
+  <div style={s.card}><h3 style={s.cardTitle}>Persönliche Daten</h3><div style={{display:"flex",alignItems:"center",gap:18,marginBottom:24}}><div className="avCircle" style={{width:76,height:76,borderRadius:"50%",background:"#1A1A1F",border:"2px dashed #3A3A40",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",overflow:"hidden",flexShrink:0}} onClick={()=>fileRef.current.click()}>{form.avatar?<img src={form.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<span style={{fontSize:28,fontFamily:"'Syne',sans-serif",fontWeight:800,color:"#FF6B35"}}>{getInitials(form)}</span>}<div className="avOverlay" style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.2s"}}>{IC.camera}</div></div><input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleAv}/><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16}}>{form.firstName||form.lastName?`${form.firstName} ${form.lastName}`.trim():"Dein Name"}</div></div></div>
+  <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Vorname</label><input style={s.inp} value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} placeholder="Max"/></div><div style={s.fg}><label style={s.lbl}>Nachname</label><input style={s.inp} value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} placeholder="Mustermann"/></div></div>
+  <div style={s.fg}><label style={s.lbl}>E-Mail</label><input style={s.inp} type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="max@beispiel.de"/></div>
+  <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Gewicht (kg)</label><input style={s.inp} type="number" value={form.weight} onChange={e=>setForm(f=>({...f,weight:e.target.value}))} placeholder="80"/></div><div style={s.fg}><label style={s.lbl}>Größe (cm)</label><input style={s.inp} type="number" value={form.height} onChange={e=>setForm(f=>({...f,height:e.target.value}))} placeholder="180"/></div></div>
+  <div style={s.fg}><label style={s.lbl}>Fitnessziel</label><select style={s.inp} value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))}>{["Muskelaufbau","Gewichtsverlust","Ausdauer","Fitness & Gesundheit","Kraft steigern"].map(g=><option key={g}>{g}</option>)}</select></div></div>
+  <div style={s.card}><h3 style={s.cardTitle}>Ernährungsziele</h3><div style={s.fg}><label style={s.lbl}>Tageskalorienziel</label><input style={s.inp} type="number" value={form.calorieGoal||""} onChange={e=>setForm(f=>({...f,calorieGoal:parseInt(e.target.value)||2500}))} placeholder="2500"/></div><div style={s.fg}><label style={s.lbl}>Proteinziel (g/Tag)</label><input style={s.inp} type="number" value={form.proteinGoal||""} onChange={e=>setForm(f=>({...f,proteinGoal:parseInt(e.target.value)||150}))} placeholder="150"/></div><div style={{height:1,background:"#1E1E24",margin:"18px 0"}}/><h3 style={{...s.cardTitle,marginBottom:14}}>Benachrichtigungen</h3><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #1E1E24"}}><div><div style={{fontWeight:700,fontSize:15}}>Erinnerungen</div><div style={{color:"#666",fontSize:11,marginTop:2}}>Wenn Training ansteht</div></div><div style={{...s.toggle,...(form.notificationsEnabled?s.toggleOn:{})}} onClick={()=>setForm(f=>({...f,notificationsEnabled:!f.notificationsEnabled}))}><div style={{...s.thumb,...(form.notificationsEnabled?s.thumbOn:{})}}/></div></div>{form.notificationsEnabled&&<div style={{...s.fg,marginTop:14}}><label style={s.lbl}>Erinnerungszeit</label><input style={s.inp} type="time" value={form.reminderTime} onChange={e=>setForm(f=>({...f,reminderTime:e.target.value}))}/></div>}</div>
+</div><button style={{...s.primaryBtn,marginTop:22}} onClick={save}>💾 Speichern</button></div>);}
+// ─── Docs Page ────────────────────────────────────────────────────────────────
+const TAG_COLORS=["#FF6B35","#00D9C0","#FFD166","#A78BFA","#EF476F","#06D6A0","#4361EE","#F72585"];
+
+function DocsPage({notify}){
+  const [folders,setFolders]=useState(()=>{try{const r=localStorage.getItem("ff_folders");return r?JSON.parse(r):[{id:"default",name:"Allgemein",color:"#FF6B35"},{id:"training",name:"Training",color:"#00D9C0"},{id:"ernaehrung",name:"Ernährung",color:"#FFD166"}];}catch{return[];}});
+  const [docs,setDocs]=useState(()=>{try{const r=localStorage.getItem("ff_docs");return r?JSON.parse(r):[];}catch{return[];}});
+  const [selFolder,setSelFolder]=useState("all");
+  const [dragDoc,setDragDoc]=useState(null);
+  const [dragOver,setDragOver]=useState(null);
+  const [preview,setPreview]=useState(null);
+  const [newFolderModal,setNewFolderModal]=useState(false);
+  const [newFolderName,setNewFolderName]=useState("");
+  const [newFolderColor,setNewFolderColor]=useState("#FF6B35");
+  const [tagModal,setTagModal]=useState(null);
+  const [tagInput,setTagInput]=useState("");
+  const [renaming,setRenaming]=useState(null);
+  const [renameVal,setRenameVal]=useState("");
+  const fileRef=useRef();
+
+  useEffect(()=>localStorage.setItem("ff_folders",JSON.stringify(folders)),[folders]);
+  useEffect(()=>localStorage.setItem("ff_docs",JSON.stringify(docs)),[docs]);
+
+  const uploadDocs=async(files)=>{
+    const arr=Array.from(files);
+    for(const file of arr){
+      if(file.type!=="application/pdf"&&!file.name.endsWith(".pdf")){notify(`${file.name} ist kein PDF`,"error");continue;}
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const newDoc={id:Date.now()+Math.random(),name:file.name.replace(".pdf",""),folderId:selFolder==="all"?"default":selFolder,tags:[],data:e.target.result,size:Math.round(file.size/1024),uploadedAt:new Date().toISOString()};
+        setDocs(d=>[...d,newDoc]);
+        notify(`${newDoc.name} hochgeladen! 📄`);
+      };
+      reader.readAsDataURL(file);
+      await new Promise(r=>setTimeout(r,100));
+    }
+  };
+
+  const delDoc=id=>{setDocs(d=>d.filter(x=>x.id!==id));notify("Dokument gelöscht");};
+  const delFolder=id=>{
+    if(id==="default")return notify("Standard-Ordner kann nicht gelöscht werden","error");
+    setDocs(d=>d.map(x=>x.folderId===id?{...x,folderId:"default"}:x));
+    setFolders(f=>f.filter(x=>x.id!==id));
+    if(selFolder===id)setSelFolder("all");
+    notify("Ordner gelöscht");
+  };
+
+  const addFolder=()=>{
+    if(!newFolderName.trim())return;
+    const id=Date.now().toString();
+    setFolders(f=>[...f,{id,name:newFolderName.trim(),color:newFolderColor}]);
+    setNewFolderModal(false);setNewFolderName("");
+    notify(`Ordner "${newFolderName}" erstellt! 📁`);
+  };
+
+  const addTag=(docId,tag)=>{
+    if(!tag.trim())return;
+    setDocs(d=>d.map(x=>x.id===docId?{...x,tags:[...new Set([...(x.tags||[]),tag.trim()])]}:x));
+  };
+  const removeTag=(docId,tag)=>setDocs(d=>d.map(x=>x.id===docId?{...x,tags:(x.tags||[]).filter(t=>t!==tag)}:x));
+
+  const moveDoc=(docId,folderId)=>{
+    setDocs(d=>d.map(x=>x.id===docId?{...x,folderId}:x));
+    notify("Dokument verschoben! 📁");
+  };
+
+  const renameDoc=(id,name)=>{setDocs(d=>d.map(x=>x.id===id?{...x,name}:x));setRenaming(null);};
+
+  const onDragStart=(e,docId)=>{setDragDoc(docId);e.dataTransfer.effectAllowed="move";};
+  const onDragOverFolder=(e,folderId)=>{e.preventDefault();setDragOver(folderId);};
+  const onDropFolder=(e,folderId)=>{e.preventDefault();if(dragDoc)moveDoc(dragDoc,folderId);setDragDoc(null);setDragOver(null);};
+
+  const visibleDocs=selFolder==="all"?docs:docs.filter(d=>d.folderId===selFolder);
+  const folder=folders.find(f=>f.id===selFolder);
+
+  return(
+    <div style={{display:"flex",height:"calc(100vh - 57px)",overflow:"hidden"}}>
+      {/* Sidebar */}
+      <div style={{width:220,background:"#0D0D0F",borderRight:"1px solid #1E1E24",display:"flex",flexDirection:"column",padding:"20px 12px",flexShrink:0,overflowY:"auto"}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10,padding:"0 6px"}}>Ordner</div>
+        {/* All */}
+        <button onClick={()=>setSelFolder("all")} style={{...docS.folderBtn,...(selFolder==="all"?docS.folderBtnOn:{})}}
+          onDragOver={e=>{e.preventDefault();setDragOver("all");}} onDrop={e=>{e.preventDefault();if(dragDoc)moveDoc(dragDoc,"default");setDragDoc(null);setDragOver(null);}}>
+          <span style={{color:"#888",display:"flex"}}>{IC.folder}</span>
+          <span style={{flex:1}}>Alle Dokumente</span>
+          <span style={{fontSize:11,color:"#555",background:"#1A1A1F",borderRadius:10,padding:"1px 7px"}}>{docs.length}</span>
+        </button>
+        {/* Folders */}
+        {folders.map(f=>(
+          <div key={f.id} style={{position:"relative",group:true}}
+            onDragOver={e=>onDragOverFolder(e,f.id)} onDrop={e=>onDropFolder(e,f.id)}>
+            <button onClick={()=>setSelFolder(f.id)} style={{...docS.folderBtn,...(selFolder===f.id?{...docS.folderBtnOn,background:f.color+"18",borderColor:f.color+"44"}:{}),...(dragOver===f.id?{borderColor:f.color,background:f.color+"25"}:{})}}>
+              <span style={{color:f.color,display:"flex"}}>{IC.folder}</span>
+              <span style={{flex:1,fontSize:14}}>{f.name}</span>
+              <span style={{fontSize:11,color:"#555",background:"#1A1A1F",borderRadius:10,padding:"1px 7px"}}>{docs.filter(d=>d.folderId===f.id).length}</span>
+            </button>
+            {f.id!=="default"&&<button style={{position:"absolute",right:4,top:"50%",transform:"translateY(-50%)",background:"transparent",border:"none",color:"#333",cursor:"pointer",padding:3,display:"flex",borderRadius:4}} className="folderDelBtn" onClick={e=>{e.stopPropagation();delFolder(f.id);}}>{IC.x}</button>}
+          </div>
+        ))}
+        <button style={{...docS.folderBtn,color:"#FF6B35",borderStyle:"dashed",marginTop:8}} onClick={()=>setNewFolderModal(true)}>
+          {IC.plus} <span style={{fontSize:13}}>Neuer Ordner</span>
+        </button>
+      </div>
+
+      {/* Main area */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {/* Toolbar */}
+        <div style={{padding:"16px 24px",borderBottom:"1px solid #1E1E24",display:"flex",alignItems:"center",gap:12,background:"#0D0D0F"}}>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>{selFolder==="all"?"Alle Dokumente":folder?.name||"Dokumente"}</div>
+            <div style={{fontSize:13,color:"#666",marginTop:2}}>{visibleDocs.length} Dokument{visibleDocs.length!==1?"e":""}</div>
+          </div>
+          <input ref={fileRef} type="file" accept="application/pdf,.pdf" multiple style={{display:"none"}} onChange={e=>uploadDocs(e.target.files)}/>
+          <button style={docS.uploadBtn} onClick={()=>fileRef.current.click()}>
+            {IC.plus} PDF hochladen
+          </button>
+        </div>
+
+        {/* Drop zone + grid */}
+        <div style={{flex:1,overflowY:"auto",padding:24}}
+          onDragOver={e=>{e.preventDefault();e.currentTarget.style.background="#FF6B3508";}}
+          onDragLeave={e=>{e.currentTarget.style.background="";}}
+          onDrop={e=>{e.preventDefault();e.currentTarget.style.background="";const files=e.dataTransfer.files;if(files.length)uploadDocs(files);}}>
+
+          {!visibleDocs.length&&(
+            <div style={{textAlign:"center",padding:"80px 20px",color:"#555",border:"2px dashed #1E1E24",borderRadius:18}}>
+              <div style={{fontSize:48,marginBottom:16}}>📄</div>
+              <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>Keine Dokumente</div>
+              <div style={{fontSize:13}}>PDFs hier reinziehen oder oben hochladen</div>
+            </div>
+          )}
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16}}>
+            {visibleDocs.map(doc=>(
+              <div key={doc.id} draggable onDragStart={e=>onDragStart(e,doc.id)}
+                style={{...docS.docCard,...(dragDoc===doc.id?{opacity:0.5,transform:"scale(0.97)"}:{})}} className="docCard">
+                {/* PDF Preview thumbnail */}
+                <div style={{height:120,background:"#0D0D0F",borderRadius:10,overflow:"hidden",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",border:"1px solid #1E1E24"}}
+                  onClick={()=>setPreview(doc)}>
+                  {doc.data?(
+                    <iframe src={`${doc.data}#toolbar=0&navpanes=0&scrollbar=0&page=1`} style={{width:"100%",height:"200%",border:"none",pointerEvents:"none",marginTop:"-50%"}} title={doc.name}/>
+                  ):(
+                    <div style={{color:"#333",fontSize:36}}>📄</div>
+                  )}
+                  <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0)",transition:"background 0.2s"}} className="pdfOverlay"/>
+                  <div style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,0.7)",borderRadius:6,padding:"3px 7px",fontSize:10,color:"#aaa"}}>{doc.size}KB</div>
+                </div>
+
+                {/* Name */}
+                {renaming===doc.id?(
+                  <input autoFocus style={{...docS.renameInp}} value={renameVal}
+                    onChange={e=>setRenameVal(e.target.value)}
+                    onBlur={()=>renameDoc(doc.id,renameVal||doc.name)}
+                    onKeyDown={e=>{if(e.key==="Enter")renameDoc(doc.id,renameVal||doc.name);if(e.key==="Escape")setRenaming(null);}}/>
+                ):(
+                  <div style={{fontSize:13,fontWeight:700,marginBottom:6,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}
+                    onDoubleClick={()=>{setRenaming(doc.id);setRenameVal(doc.name);}}>
+                    {doc.name}
+                  </div>
+                )}
+
+                {/* Tags */}
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8,minHeight:20}}>
+                  {(doc.tags||[]).map((tag,ti)=>(
+                    <span key={ti} style={{fontSize:10,background:TAG_COLORS[ti%TAG_COLORS.length]+"22",color:TAG_COLORS[ti%TAG_COLORS.length],borderRadius:6,padding:"2px 7px",display:"flex",alignItems:"center",gap:3,cursor:"pointer"}}
+                      onClick={()=>removeTag(doc.id,tag)}>
+                      {tag} ×
+                    </span>
+                  ))}
+                  <button style={{fontSize:10,background:"#1A1A1F",border:"1px dashed #2A2A30",color:"#666",borderRadius:6,padding:"2px 7px",cursor:"pointer",display:"flex",alignItems:"center",gap:3}}
+                    onClick={()=>{setTagModal(doc.id);setTagInput("");}}>
+                    {IC.tag} Tag
+                  </button>
+                </div>
+
+                {/* Folder badge + actions */}
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  {(()=>{const f=folders.find(x=>x.id===doc.folderId);return f?<span style={{fontSize:10,background:f.color+"20",color:f.color,borderRadius:6,padding:"2px 8px",fontWeight:600}}>{f.name}</span>:null;})()}
+                  <div style={{flex:1}}/>
+                  <button style={docS.iconAct} title="Vorschau" onClick={()=>setPreview(doc)}>{IC.image}</button>
+                  <button style={docS.iconAct} title="Löschen" onClick={()=>delDoc(doc.id)}>{IC.trash}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* PDF Preview Modal */}
+      {preview&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",backdropFilter:"blur(8px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setPreview(null)}>
+          <div style={{background:"#111114",borderRadius:18,overflow:"hidden",width:"min(90vw,900px)",height:"90vh",display:"flex",flexDirection:"column",border:"1px solid #2A2A30"}} onClick={e=>e.stopPropagation()}>
+            <div style={{padding:"14px 20px",borderBottom:"1px solid #1E1E24",display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:18}}>📄</span>
+              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,flex:1}}>{preview.name}</span>
+              <span style={{fontSize:12,color:"#666"}}>{preview.size}KB</span>
+              <button style={{background:"transparent",border:"none",color:"#888",cursor:"pointer",padding:6,display:"flex",borderRadius:8}} onClick={()=>setPreview(null)}>{IC.x}</button>
+            </div>
+            <iframe src={preview.data} style={{flex:1,border:"none",width:"100%"}} title={preview.name}/>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Modal */}
+      {tagModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:150,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setTagModal(null)}>
+          <div style={{background:"#111114",borderRadius:16,padding:24,width:320,border:"1px solid #2A2A30"}} onClick={e=>e.stopPropagation()} className="dropIn">
+            <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,margin:"0 0 16px"}}>Tag hinzufügen</h3>
+            <input autoFocus style={{...docS.renameInp,width:"100%",padding:"10px 14px",marginBottom:12,fontSize:14}} placeholder="Tag eingeben..."
+              value={tagInput} onChange={e=>setTagInput(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"&&tagInput.trim()){addTag(tagModal,tagInput);setTagModal(null);}}}/>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+              {["Wichtig","Vertrag","Rezept","Workout","Medizin","Finanzen","Personal"].map(t=>(
+                <button key={t} style={{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:8,padding:"5px 12px",color:"#aaa",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif"}}
+                  onClick={()=>{addTag(tagModal,t);setTagModal(null);}}>{t}</button>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...docS.secBtn2}} onClick={()=>setTagModal(null)}>Abbrechen</button>
+              <button style={{...docS.primBtn2,flex:1}} onClick={()=>{if(tagInput.trim()){addTag(tagModal,tagInput);setTagModal(null);}}}>Hinzufügen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Folder Modal */}
+      {newFolderModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:150,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setNewFolderModal(false)}>
+          <div style={{background:"#111114",borderRadius:16,padding:24,width:320,border:"1px solid #2A2A30"}} onClick={e=>e.stopPropagation()} className="dropIn">
+            <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,margin:"0 0 16px"}}>Neuer Ordner</h3>
+            <input autoFocus style={{...docS.renameInp,width:"100%",padding:"10px 14px",marginBottom:12,fontSize:14}} placeholder="Ordner-Name..."
+              value={newFolderName} onChange={e=>setNewFolderName(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&addFolder()}/>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:16}}>
+              {TAG_COLORS.map(c=>(
+                <div key={c} onClick={()=>setNewFolderColor(c)} style={{width:26,height:26,borderRadius:"50%",background:c,cursor:"pointer",outline:newFolderColor===c?`3px solid ${c}`:"none",outlineOffset:2,transition:"transform 0.15s"}} className="colorSwatch"/>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button style={docS.secBtn2} onClick={()=>setNewFolderModal(false)}>Abbrechen</button>
+              <button style={{...docS.primBtn2,flex:1}} onClick={addFolder}>Erstellen</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const docS={
+  folderBtn:{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"1px solid transparent",borderRadius:9,padding:"9px 10px",color:"#888",cursor:"pointer",fontSize:14,fontWeight:500,fontFamily:"'DM Sans',sans-serif",marginBottom:3,textAlign:"left",transition:"all 0.15s"},
+  folderBtnOn:{background:"#1E1E24",color:"#F0EDE8",borderColor:"#2A2A30"},
+  docCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:14,cursor:"grab",transition:"transform 0.15s,box-shadow 0.15s",userSelect:"none"},
+  uploadBtn:{background:"#FF6B35",border:"none",borderRadius:10,padding:"10px 18px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7,fontFamily:"'DM Sans',sans-serif"},
+  iconAct:{background:"transparent",border:"none",color:"#444",cursor:"pointer",padding:5,display:"flex",borderRadius:6,transition:"color 0.15s"},
+  renameInp:{background:"#0D0D0F",border:"1px solid #FF6B35",borderRadius:7,color:"#F0EDE8",fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box"},
+  secBtn2:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:9,padding:"10px 18px",color:"#aaa",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"},
+  primBtn2:{background:"#FF6B35",border:"none",borderRadius:9,padding:"10px 18px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"},
+};
+
+
+const s={root:{display:"flex",minHeight:"100vh",background:"#0D0D0F",color:"#F0EDE8",fontFamily:"'DM Sans',sans-serif"},sidebar:{width:236,background:"#111114",borderRight:"1px solid #1E1E24",display:"flex",flexDirection:"column",padding:"26px 14px",position:"fixed",top:0,bottom:0,left:0,zIndex:10},logo:{display:"flex",alignItems:"center",gap:10,padding:"0 8px 26px"},logoTxt:{fontFamily:"'Syne',sans-serif",fontSize:23,fontWeight:800,letterSpacing:"-0.5px"},nav:{display:"flex",flexDirection:"column",gap:2,flex:1},navItem:{display:"flex",alignItems:"center",gap:11,padding:"9px 12px",borderRadius:9,border:"none",background:"transparent",color:"#888",cursor:"pointer",fontSize:15,fontWeight:500,transition:"all 0.2s",textAlign:"left"},navOn:{background:"#1E1E24",color:"#F0EDE8"},streakCard:{background:"linear-gradient(135deg,#FF6B35,#FF8C60)",borderRadius:13,padding:"13px 15px",display:"flex",alignItems:"center",gap:11},streakN:{fontWeight:800,fontSize:16,color:"#fff",fontFamily:"'Syne',sans-serif"},streakL:{fontSize:10,color:"rgba(255,255,255,0.8)"},main:{flex:1,marginLeft:236,minHeight:"100vh"},topBar:{position:"sticky",top:0,zIndex:9,background:"rgba(13,13,15,0.88)",backdropFilter:"blur(16px)",borderBottom:"1px solid #1E1E24",padding:"12px 38px",display:"flex",justifyContent:"space-between",alignItems:"center"},topGreet:{fontFamily:"'Syne',sans-serif",fontSize:15,fontWeight:700,color:"#666"},iconCircle:{width:36,height:36,borderRadius:"50%",background:"#1A1A1F",border:"1px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#999",position:"relative",transition:"all 0.2s"},iconOn:{background:"#252528",color:"#F0EDE8",borderColor:"#3A3A40"},badge:{position:"absolute",top:-4,right:-4,background:"#FF6B35",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #0D0D0F"},avatarBtn:{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#FF6B35,#FF8C60)",border:"2px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",transition:"all 0.2s"},avatarOn:{borderColor:"#FF6B35",boxShadow:"0 0 0 3px rgba(255,107,53,0.2)"},initials:{fontFamily:"'Syne',sans-serif",fontSize:11,fontWeight:800,color:"#fff"},veil:{position:"fixed",inset:0,zIndex:8},dropdown:{position:"absolute",top:"calc(100% + 9px)",right:0,background:"#161618",border:"1px solid #2A2A30",borderRadius:14,overflow:"hidden",zIndex:50,boxShadow:"0 20px 60px rgba(0,0,0,0.6)"},ddHead:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 16px",borderBottom:"1px solid #1E1E24"},ddTitle:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13},nRow:{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 16px",borderBottom:"1px solid #111116",cursor:"pointer"},nRowU:{background:"#1A1A1F"},toast:{position:"fixed",top:22,right:22,background:"#1A2A1A",border:"1px solid #2A4A2A",color:"#6EE7B7",borderRadius:11,padding:"11px 18px",display:"flex",alignItems:"center",gap:9,fontSize:15,fontWeight:600,zIndex:200},toastErr:{background:"#2A1A1A",border:"1px solid #4A2A2A",color:"#FCA5A5"},page:{padding:"34px 38px 56px",maxWidth:940,margin:"0 auto"},pageHead:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28},pageTitle:{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,margin:0,letterSpacing:"-1px"},pageSub:{color:"#666",margin:"4px 0 0",fontSize:14},hero:{borderRadius:20,overflow:"hidden",position:"relative",height:300,marginBottom:26},heroBtn:{display:"inline-flex",alignItems:"center",gap:8,background:"#FF6B35",border:"none",color:"#fff",borderRadius:11,padding:"12px 20px",fontSize:15,fontWeight:700,cursor:"pointer",width:"fit-content",fontFamily:"'DM Sans',sans-serif"},statsRow:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:13,marginBottom:22},statCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:17},statV:{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,lineHeight:1},statL:{fontSize:12,color:"#666",marginTop:4},secTitle:{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,margin:0},weekGrid:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5},dayCell:{background:"#0D0D0F",border:"1px solid #1E1E24",borderRadius:8,padding:"11px 5px",display:"flex",flexDirection:"column",alignItems:"center",gap:5,transition:"all 0.2s"},dayCellDone:{background:"#FF6B351A",borderColor:"#FF6B35"},dayCellToday:{borderColor:"#FF6B35",borderWidth:2},recentCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:"16px 20px",display:"flex",alignItems:"center",cursor:"pointer",marginTop:11},card:{background:"#111114",border:"1px solid #1E1E24",borderRadius:16,padding:22},cardTitle:{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,margin:0},plansGrid:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16},planCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:16,padding:20,position:"relative",borderTop:"3px solid"},dayChip:{width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,background:"#1A1A1F",fontSize:11,fontWeight:700},newPlanCard:{background:"#111114",border:"2px dashed #222",borderRadius:16,padding:"36px 20px",display:"flex",flexDirection:"column",alignItems:"center",gap:9,cursor:"pointer"},cardIconBtn:{background:"transparent",border:"none",color:"#555",cursor:"pointer",padding:5,borderRadius:6,display:"flex",transition:"all 0.15s"},stepBar:{display:"flex",alignItems:"center",marginBottom:26},stepDot:{width:32,height:32,borderRadius:"50%",background:"#1A1A1F",border:"2px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#555",flexShrink:0,transition:"all 0.3s"},stepOn:{background:"#FF6B35",border:"2px solid #FF6B35",color:"#fff"},logCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:18,padding:26},logTitle:{fontFamily:"'Syne',sans-serif",fontSize:21,fontWeight:700,margin:"0 0 20px"},formGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:13},fg:{marginBottom:13},lbl:{display:"block",fontSize:13,fontWeight:600,color:"#888",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"},inp:{width:"100%",background:"#0D0D0F",border:"1px solid #2A2A30",borderRadius:9,padding:"10px 13px",color:"#F0EDE8",fontSize:15,fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box"},addBtn:{background:"#FF6B35",border:"none",borderRadius:9,padding:"0 13px",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center"},exBlock:{background:"#0D0D0F",borderRadius:11,padding:13,marginBottom:9},setsH:{display:"grid",gridTemplateColumns:"34px 1fr 1fr",gap:7,fontSize:11,color:"#555",fontWeight:700,textTransform:"uppercase",marginBottom:6},setRow:{display:"grid",gridTemplateColumns:"34px 1fr 1fr",gap:7,marginBottom:5,alignItems:"center"},setN:{width:24,height:24,borderRadius:"50%",background:"#1A1A1F",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#666",fontWeight:700},setInp:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"6px 7px",color:"#F0EDE8",fontSize:13,fontFamily:"'DM Sans',sans-serif",outline:"none",textAlign:"center"},addSetBtn:{background:"transparent",border:"1px dashed #2A2A30",color:"#666",borderRadius:6,padding:"4px 11px",cursor:"pointer",fontSize:12,marginTop:5,fontFamily:"'DM Sans',sans-serif"},photoBox:{border:"2px dashed #2A2A30",borderRadius:11,overflow:"hidden",cursor:"pointer"},primaryBtn:{background:"#FF6B35",border:"none",borderRadius:10,padding:"12px 22px",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7,fontFamily:"'DM Sans',sans-serif"},secBtn:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:10,padding:"12px 22px",color:"#aaa",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"},histCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:13,padding:"16px 20px",display:"flex",alignItems:"center",gap:13,cursor:"pointer"},wDetail:{background:"#111114",border:"1px solid #1E1E24",borderRadius:18,padding:26},backBtn:{background:"transparent",border:"none",color:"#888",cursor:"pointer",fontSize:15,padding:"0 0 16px",display:"flex",alignItems:"center",gap:5,fontFamily:"'DM Sans',sans-serif"},overlay2:{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:18},modal:{background:"#111114",border:"1px solid #2A2A30",borderRadius:18,padding:26,width:"100%",maxWidth:430},modalTitle:{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,margin:"0 0 20px"},toggle:{width:40,height:22,borderRadius:11,background:"#2A2A30",cursor:"pointer",position:"relative",transition:"background 0.3s"},toggleOn:{background:"#FF6B35"},thumb:{position:"absolute",top:3,left:3,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"transform 0.3s"},thumbOn:{transform:"translateX(18px)"},iconBtnS:{background:"transparent",border:"none",color:"#444",cursor:"pointer",display:"flex",padding:3},dayToggle:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"6px 11px",color:"#aaa",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:600,transition:"all 0.2s"},};
+const css=`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{margin:0;background:#0D0D0F;}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:#111114;}::-webkit-scrollbar-thumb{background:#2A2A30;border-radius:3px;}.pageEnter{animation:pageEnter 0.4s cubic-bezier(0.16,1,0.3,1) both;}@keyframes pageEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}.fadeIn{animation:fadeIn 0.3s ease both;}.dropIn{animation:dropIn 0.25s cubic-bezier(0.16,1,0.3,1) both;}@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}@keyframes dropIn{from{opacity:0;transform:translateY(-8px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}.statCard{transition:transform 0.2s,box-shadow 0.2s;}.statCard:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.4);}.planCard{transition:transform 0.2s,box-shadow 0.2s;}.planCard:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,0.5);}.histCard{transition:background 0.15s,border-color 0.15s;}.histCard:hover{background:#161618 !important;border-color:#2A2A30 !important;}.recentCard{transition:background 0.15s;cursor:pointer;}.recentCard:hover{background:#161618 !important;}.notifRow:hover{background:#1E1E22 !important;}.avCircle:hover .avOverlay{opacity:1 !important;}.iconBtn:hover{background:#252528 !important;color:#F0EDE8 !important;}.markAllBtn{background:transparent;border:none;color:#FF6B35;cursor:pointer;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;}.profEditBtn:hover{color:#F0EDE8 !important;}.cardIconBtn:hover{background:#1A1A1F !important;color:#F0EDE8 !important;}.colorSwatch:hover{transform:scale(1.25);}
+  .docCard:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,0.5);}
+  .docCard:active{cursor:grabbing;}
+  .pdfOverlay:hover{background:rgba(0,0,0,0.15) !important;}
+  .folderDelBtn{opacity:0;}
+  div:hover>.folderDelBtn{opacity:1;}
+  .docCard .iconAct:hover{color:#F0EDE8 !important;}input:focus,select:focus,textarea:focus{border-color:#FF6B35 !important;}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}input[type=color]{-webkit-appearance:none;padding:0;}input[type=color]::-webkit-color-swatch-wrapper{padding:0;}input[type=color]::-webkit-color-swatch{border:none;border-radius:7px;}`;
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(FitForge));
+</script></body></html>
