@@ -271,7 +271,7 @@ function FitForge(){
       <aside style={s.sidebar}>
         <div style={s.logo}><span style={{color:"#FF6B35",display:"flex"}}>{IC.bolt}</span><span style={s.logoTxt}>FitForge</span></div>
         <nav style={s.nav}>
-          {[["dashboard","Dashboard",IC.dashboard],["plans","Trainingspläne",IC.plans],["log","Training loggen",IC.log],["history","Verlauf",IC.history],["stats","Statistiken",IC.stats],["nutrition","Ernährung",IC.nutrition],["prs","Bestleistungen",IC.trophy],["docs","Dokumente",IC.docs]].map(([id,label,icon])=>(
+          {[["dashboard","Dashboard",IC.dashboard],["plans","Trainingspläne",IC.plans],["log","Training starten",IC.log],["history","Verlauf",IC.history],["stats","Statistiken",IC.stats],["nutrition","Ernährung",IC.nutrition],].map(([id,label,icon])=>(
             <button key={id} style={{...s.navItem,...(view===id?s.navOn:{})}} onClick={()=>{setView(id);closeAll();}}><span style={{display:"flex",flexShrink:0}}>{icon}</span><span>{label}</span></button>
           ))}
         </nav>
@@ -332,9 +332,9 @@ function FitForge(){
           {view==="history"&&<History data={data} setData={setData} selWO={selWO} setSelWO={setSelWO} notify={showToast}/>}
           {view==="stats"&&<Stats data={data} prs={prs} nutrition={nutrition} user={user}/>}
           {view==="nutrition"&&<Nutrition nutrition={nutrition} setNutrition={setNutrition} user={user} notify={showToast}/>}
-          {view==="prs"&&<PRPage prs={prs} setPrs={setPrs} notify={showToast}/>}
+          
           {view==="profile"&&<ProfilePage user={user} setUser={setUser} notify={showToast}/>}
-          {view==="docs"&&<DocsPage notify={showToast}/>}
+          
         </div>
       </main>
       {logModal&&<QuickLogModal data={data} setData={setData} onClose={()=>setLogModal(false)} notify={showToast}/>}
@@ -473,23 +473,182 @@ function Plans({data,setData,onNew,onEdit,notify}){
   </div>);}
 function LogWorkout({data,setData,notify,prs,onSavePR}){
   const [step,setStep]=useState(1);
-  const [form,setForm]=useState({planId:data.plans[0]?.id||null,name:"",date:todayStr(),duration:"",note:"",photo:null,exercises:[]});
-  const [newEx,setNewEx]=useState("");
-  const fileRef=useRef();
-  const addEx=()=>{if(!newEx.trim())return;setForm(f=>({...f,exercises:[...f.exercises,{name:newEx,sets:[{reps:"",weight:""}]}]}));setNewEx("");};
-  const addSet=ei=>setForm(f=>{const e=[...f.exercises];e[ei]={...e[ei],sets:[...e[ei].sets,{reps:"",weight:""}]};return{...f,exercises:e};});
-  const upd=(ei,si,k,v)=>setForm(f=>{const e=JSON.parse(JSON.stringify(f.exercises));e[ei].sets[si][k]=v;return{...f,exercises:e};});
-  const photoUp=e=>{const f=e.target.files[0];if(!f)return;readFile(f).then(d=>setForm(f2=>({...f2,photo:d})));};
-  const save=()=>{if(!form.name)return notify("Bitte Namen eingeben","error");if(!form.exercises.length)return notify("Mindestens eine Übung","error");const parsed=form.exercises.map(e=>({...e,sets:e.sets.map(s=>({reps:parseInt(s.reps)||0,weight:parseFloat(s.weight)||0}))}));parsed.forEach(ex=>{const best=ex.sets.reduce((b,s)=>s.weight*s.reps>b.weight*b.reps?s:b,{reps:0,weight:0});if(best.weight>0)onSavePR(ex.name,best.weight,best.reps);});setData(d=>({...d,workouts:[{id:Date.now(),...form,duration:parseInt(form.duration)||0,exercises:parsed},...d.workouts]}));notify("Training gespeichert! 💪");setForm({planId:data.plans[0]?.id||null,name:"",date:todayStr(),duration:"",note:"",photo:null,exercises:[]});setStep(1);};
-  return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Training loggen</h1><p style={s.pageSub}>Schritt {step} von 3</p></div></div>
+  const [planId,setPlanId]=useState(data.plans[0]?.id||null);
+  const [date,setDate]=useState(todayStr());
+  const [exercises,setExercises]=useState([]);
+  const [curEx,setCurEx]=useState(0);
+  const [curRound,setCurRound]=useState(1);
+  const [totalRounds,setTotalRounds]=useState(1);
+  const [repeatRounds,setRepeatRounds]=useState(false);
+  const [timer,setTimer]=useState(0);
+  const [running,setRunning]=useState(false);
+  const [sets,setSets]=useState({});
+  const timerRef=useRef(null);
+
+  useEffect(()=>{
+    const plan=data.plans.find(p=>p.id===parseInt(planId));
+    if(plan){
+      const exs=(plan.exercises||[]).map(e=>typeof e==="string"?{name:e,photo:null,reps:""}:e);
+      setExercises(exs);
+      const initSets={};
+      exs.forEach((_,i)=>{initSets[i]=[{reps:"",weight:""}];});
+      setSets(initSets);
+    }
+  },[planId]);
+
+  useEffect(()=>{
+    if(running){timerRef.current=setInterval(()=>setTimer(t=>t+1),1000);}
+    else{clearInterval(timerRef.current);}
+    return()=>clearInterval(timerRef.current);
+  },[running]);
+
+  const fmtTimer=t=>{const m=Math.floor(t/60),s=t%60;return`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;};
+  const addSet=ei=>setSets(s=>({...s,[ei]:[...(s[ei]||[]),{reps:"",weight:""}]}));
+  const updSet=(ei,si,k,v)=>setSets(s=>{const n=JSON.parse(JSON.stringify(s));n[ei][si][k]=v;return n;});
+
+  const goNext=()=>{
+    if(curEx<exercises.length-1){
+      setCurEx(i=>i+1);
+    } else if(repeatRounds){
+      // Go back to first exercise for next round
+      setCurEx(0);
+      setCurRound(r=>r+1);
+      notify(`Runde ${curRound+1} gestartet! 💪`);
+    } else {
+      setStep(3);
+      setRunning(false);
+    }
+  };
+
+  const save=()=>{
+    const plan=data.plans.find(p=>p.id===parseInt(planId));
+    const parsed=exercises.map((ex,ei)=>({name:ex.name,sets:(sets[ei]||[{reps:0,weight:0}]).map(s=>({reps:parseInt(s.reps)||0,weight:parseFloat(s.weight)||0}))}));
+    parsed.forEach(ex=>{const best=ex.sets.reduce((b,s)=>s.weight*s.reps>b.weight*b.reps?s:b,{reps:0,weight:0});if(best.weight>0)onSavePR(ex.name,best.weight,best.reps);});
+    setData(d=>({...d,workouts:[{id:Date.now(),planId:parseInt(planId),name:plan?.name||"Training",date,duration:Math.round(timer/60),note:"",photo:null,exercises:parsed},...d.workouts]}));
+    notify("Training gespeichert! 💪");
+    setStep(1);setTimer(0);setRunning(false);setCurEx(0);setCurRound(1);
+  };
+
+  const plan=data.plans.find(p=>p.id===parseInt(planId));
+  const curExData=exercises[curEx];
+  const curSets=sets[curEx]||[{reps:"",weight:""}];
+
+  return(<div style={s.page}>
+    <div style={s.pageHead}><div><h1 style={s.pageTitle}>Training starten</h1><p style={s.pageSub}>Schritt {step} von 3</p></div></div>
     <div style={s.stepBar}>{[1,2,3].map(n=>(<div key={n} style={{display:"flex",alignItems:"center",flex:1}}><div style={{...s.stepDot,...(step>=n?s.stepOn:{})}}>{step>n?IC.check:n}</div>{n<3&&<div style={{flex:1,height:2,background:step>n?"#FF6B35":"#1E1E24",transition:"background 0.3s"}}/>}</div>))}</div>
     <div style={s.logCard}>
-      {step===1&&<div className="fadeIn"><h3 style={s.logTitle}>Grundinfos</h3><div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Name</label><input style={s.inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Push Day A"/></div><div style={s.fg}><label style={s.lbl}>Datum</label><input style={s.inp} type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Dauer (Min)</label><input style={s.inp} type="number" value={form.duration} onChange={e=>setForm(f=>({...f,duration:e.target.value}))} placeholder="60"/></div><div style={s.fg}><label style={s.lbl}>Plan</label><select style={s.inp} value={form.planId||""} onChange={e=>setForm(f=>({...f,planId:parseInt(e.target.value)}))}><option value="">Kein Plan</option>{data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div><button style={s.primaryBtn} onClick={()=>setStep(2)}>Weiter →</button></div>}
-      {step===2&&<div className="fadeIn"><h3 style={s.logTitle}>Übungen</h3><div style={{display:"flex",gap:9,marginBottom:14}}><input style={{...s.inp,flex:1}} value={newEx} onChange={e=>setNewEx(e.target.value)} placeholder="Übung hinzufügen..." onKeyDown={e=>e.key==="Enter"&&addEx()}/><button style={s.addBtn} onClick={addEx}>{IC.plus}</button></div>
-        {form.exercises.map((ex,ei)=>{const pr=prs[ex.name.toLowerCase().trim()];return(<div key={ei} style={s.exBlock}><div style={{display:"flex",justifyContent:"space-between",marginBottom:10,alignItems:"center"}}><div><span style={{fontWeight:700,fontSize:14}}>{ex.name}</span>{pr&&<span style={{marginLeft:9,fontSize:10,color:"#FFD166",background:"#FFD16615",borderRadius:5,padding:"2px 7px"}}>🏆 {pr.weight}kg×{pr.reps}</span>}</div><button style={s.iconBtnS} onClick={()=>setForm(f=>({...f,exercises:f.exercises.filter((_,i)=>i!==ei)}))}>{IC.trash}</button></div><div style={s.setsH}><span>Satz</span><span>Wdh</span><span>Kg</span></div>{ex.sets.map((set,si)=>(<div key={si} style={s.setRow}><span style={s.setN}>{si+1}</span><input style={s.setInp} type="number" value={set.reps} onChange={e=>upd(ei,si,"reps",e.target.value)} placeholder="0"/><input style={s.setInp} type="number" value={set.weight} onChange={e=>upd(ei,si,"weight",e.target.value)} placeholder="0"/></div>))}<button style={s.addSetBtn} onClick={()=>addSet(ei)}>+ Satz</button></div>);})}
-        <div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={()=>setStep(1)}>← Zurück</button><button style={s.primaryBtn} onClick={()=>setStep(3)}>Weiter →</button></div></div>}
-      {step===3&&<div className="fadeIn"><h3 style={s.logTitle}>Notiz & Foto</h3><div style={s.fg}><label style={s.lbl}>Notiz</label><textarea style={{...s.inp,height:85,resize:"vertical"}} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="Wie lief das Training?"/></div><div style={s.fg}><label style={s.lbl}>Foto</label><div style={s.photoBox} onClick={()=>fileRef.current.click()}>{form.photo?<img src={form.photo} alt="w" style={{width:"100%",maxHeight:210,objectFit:"cover",display:"block"}}/>:<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:11,padding:38,color:"#555"}}>{IC.camera}<span>Foto hinzufügen</span></div>}</div><input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={photoUp}/></div><div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={()=>setStep(2)}>← Zurück</button><button style={{...s.primaryBtn,flex:1}} onClick={save}>💾 Speichern</button></div></div>}
-    </div></div>);}
+
+      {/* STEP 1 - Plan & Datum */}
+      {step===1&&<div className="fadeIn">
+        <h3 style={s.logTitle}>Plan & Datum</h3>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+          <div style={s.fg}><label style={s.lbl}>Trainingsplan</label>
+            <select style={s.inp} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
+              <option value="">Kein Plan</option>
+              {data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div style={s.fg}><label style={s.lbl}>Datum</label><input style={s.inp} type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+        </div>
+
+        {/* Repeat toggle */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0D0D0F",borderRadius:12,padding:"14px 18px",marginBottom:20,border:"1px solid #1E1E24"}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:3}}>Durchgang wiederholen</div>
+            <div style={{fontSize:12,color:"#666"}}>Alle Übungen mehrfach durchlaufen</div>
+          </div>
+          <div style={{...s.toggle,...(repeatRounds?s.toggleOn:{})}} onClick={()=>setRepeatRounds(r=>!r)}>
+            <div style={{...s.thumb,...(repeatRounds?s.thumbOn:{})}}/>
+          </div>
+        </div>
+
+        {plan&&<div style={{background:"#0D0D0F",borderRadius:12,padding:16,marginBottom:20}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#888",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Übungen im Plan:</div>
+          {(plan.exercises||[]).map((ex,i)=>{const e=typeof ex==="string"?{name:ex,photo:null,reps:""}:ex;return(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid #1A1A1F"}}>
+            {e.photo?<img src={e.photo} style={{width:36,height:36,borderRadius:8,objectFit:"cover",flexShrink:0}}/>:<div style={{width:36,height:36,borderRadius:8,background:"#1A1A1F",display:"flex",alignItems:"center",justifyContent:"center",color:"#555",flexShrink:0}}>{IC.dumbbell}</div>}
+            <span style={{flex:1,fontSize:14,fontWeight:600}}>{e.name}</span>
+            {e.reps&&<span style={{fontSize:12,color:"#FF6B35",fontWeight:700,background:"#FF6B3515",borderRadius:6,padding:"3px 9px"}}>{e.reps} Wdh</span>}
+          </div>);})}
+        </div>}
+        <button style={s.primaryBtn} onClick={()=>{if(!planId)return notify("Bitte Plan auswählen","error");setStep(2);setRunning(true);}}>▶ Training starten</button>
+      </div>}
+
+      {/* STEP 2 - Training mit Timer */}
+      {step===2&&<div className="fadeIn">
+        {/* Timer */}
+        <div style={{textAlign:"center",marginBottom:22,padding:"20px",background:"#0D0D0F",borderRadius:16,border:"1px solid #1E1E24",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            {repeatRounds&&<div style={{fontSize:12,color:"#888",marginBottom:4}}>Runde {curRound}</div>}
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:46,fontWeight:800,color:"#FF6B35",letterSpacing:2}}>{fmtTimer(timer)}</div>
+          </div>
+          <button style={{...s.primaryBtn,background:running?"#EF476F":"#06D6A0",padding:"14px 22px",fontSize:16}} onClick={()=>setRunning(r=>!r)}>
+            {running?"⏸":"▶"}
+          </button>
+        </div>
+
+        {/* Exercise progress dots */}
+        <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:16}}>
+          {exercises.map((_,i)=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:i===curEx?"#FF6B35":i<curEx?"#06D6A0":"#2A2A30",transition:"all 0.3s"}}/>)}
+        </div>
+
+        {curExData&&<div>
+          {/* Big exercise image */}
+          <div style={{width:"100%",height:200,borderRadius:16,overflow:"hidden",marginBottom:16,background:"#0D0D0F",border:"1px solid #1E1E24",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+            {curExData.photo
+              ?<img src={curExData.photo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,color:"#2A2A30"}}>
+                <svg width="64" height="64" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1"><path d="M6.5 6.5h11M6.5 17.5h11"/><rect x="2" y="5" width="3" height="14" rx="1.5"/><rect x="19" y="5" width="3" height="14" rx="1.5"/><path d="M5 12h14"/></svg>
+                <span style={{fontSize:13}}>Kein Bild hinterlegt</span>
+              </div>
+            }
+            <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(0,0,0,0.85))",padding:"20px 16px 14px"}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"#fff"}}>{curExData.name}</div>
+              {curExData.reps&&<div style={{fontSize:13,color:"#FF6B35",fontWeight:600,marginTop:3}}>{curExData.reps} Wiederholungen</div>}
+            </div>
+          </div>
+
+          <div style={s.exBlock}>
+            <div style={s.setsH}><span>Satz</span><span>Wdh</span><span>Kg</span></div>
+            {curSets.map((set,si)=>(<div key={si} style={s.setRow}>
+              <span style={s.setN}>{si+1}</span>
+              <input style={s.setInp} type="number" value={set.reps} onChange={e=>updSet(curEx,si,"reps",e.target.value)} placeholder={curExData.reps||"0"}/>
+              <input style={s.setInp} type="number" value={set.weight} onChange={e=>updSet(curEx,si,"weight",e.target.value)} placeholder="0"/>
+            </div>))}
+            <button style={s.addSetBtn} onClick={()=>addSet(curEx)}>+ Satz</button>
+          </div>
+
+          <div style={{display:"flex",gap:12,marginTop:14}}>
+            {curEx>0&&<button style={s.secBtn} onClick={()=>setCurEx(i=>i-1)}>←</button>}
+            <button style={{...s.primaryBtn,flex:1,background:curEx===exercises.length-1&&!repeatRounds?"#06D6A0":"#FF6B35"}} onClick={goNext}>
+              {curEx<exercises.length-1?"Nächste Übung →":repeatRounds?`Runde ${curRound+1} starten 🔄`:"✓ Fertig"}
+            </button>
+          </div>
+          <button style={{width:"100%",marginTop:10,background:"transparent",border:"2px solid #EF476F",borderRadius:10,padding:"12px",color:"#EF476F",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8}} onClick={()=>{setStep(3);setRunning(false);}}>
+            ⏹ Training beenden
+          </button>
+        </div>}
+      </div>}
+
+      {/* STEP 3 - Zusammenfassung */}
+      {step===3&&<div className="fadeIn">
+        <h3 style={s.logTitle}>Zusammenfassung</h3>
+        <div style={{background:"#0D0D0F",borderRadius:14,padding:20,marginBottom:20}}>
+          <div style={{display:"flex",justifyContent:"space-around",marginBottom:16,paddingBottom:16,borderBottom:"1px solid #1E1E24"}}>
+            <div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:"#FF6B35"}}>{fmtTimer(timer)}</div><div style={{fontSize:12,color:"#888"}}>Dauer</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:"#00D9C0"}}>{exercises.length}</div><div style={{fontSize:12,color:"#888"}}>Übungen</div></div>
+            {repeatRounds&&<div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:"#A78BFA"}}>{curRound}</div><div style={{fontSize:12,color:"#888"}}>Runden</div></div>}
+            <div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:"#FFD166"}}>{Object.values(sets).flat().reduce((a,s)=>a+(parseInt(s.reps)||0)*(parseFloat(s.weight)||0),0)}kg</div><div style={{fontSize:12,color:"#888"}}>Volumen</div></div>
+          </div>
+          {exercises.map((ex,i)=>(<div key={i} style={{padding:"8px 0",borderBottom:"1px solid #1A1A1F"}}><div style={{fontWeight:700,fontSize:13,marginBottom:3}}>{ex.name}</div><div style={{fontSize:12,color:"#888"}}>{(sets[i]||[]).filter(s=>s.reps).map((s,si)=>`Satz ${si+1}: ${s.reps} Wdh × ${s.weight}kg`).join(" · ")||"Keine Daten"}</div></div>))}
+        </div>
+        <div style={{display:"flex",gap:12}}>
+          <button style={s.secBtn} onClick={()=>{setStep(2);setRunning(true);}}>← Zurück</button>
+          <button style={{...s.primaryBtn,flex:1}} onClick={save}>💾 Training speichern</button>
+        </div>
+      </div>}
+    </div>
+  </div>);}
+
 function History({data,setData,selWO,setSelWO,notify}){
   const sorted=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date));
   const del=id=>{setData(d=>({...d,workouts:d.workouts.filter(w=>w.id!==id)}));setSelWO(null);notify("Training gelöscht");};
@@ -518,7 +677,12 @@ function PlanModal({data,setData,editPlan,onClose,notify}){
     <div style={s.fg}><label style={s.lbl}>Name</label><input style={s.inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Push Pull Legs" autoFocus/></div>
     <div style={s.fg}><label style={s.lbl}>Farbe</label><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:38,height:38,borderRadius:9,background:form.color,border:"2px solid #3A3A40",flexShrink:0}}/><input type="color" value={form.color} onChange={e=>setForm(f=>({...f,color:e.target.value}))} style={{flex:1,height:38,borderRadius:9,border:"1px solid #2A2A30",background:"transparent",cursor:"pointer",padding:2}}/></div><div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:9}}>{["#FF6B35","#EF476F","#FFD166","#06D6A0","#00D9C0","#118AB2","#A78BFA","#F72585","#7209B7","#4361EE","#4CC9F0","#FF9F1C","#2EC4B6","#CBFF8C","#FF6B6B"].map(c=>(<div key={c} onClick={()=>setForm(f=>({...f,color:c}))} style={{width:22,height:22,borderRadius:"50%",background:c,cursor:"pointer",outline:form.color===c?`3px solid ${c}`:"none",outlineOffset:2}} className="colorSwatch"/>))}</div></div>
     <div style={s.fg}><label style={s.lbl}>Trainingstage</label><div style={{display:"flex",gap:7,flexWrap:"wrap"}}>{FULL_WEEKDAYS.map((day,i)=><button key={day} onClick={()=>toggleDay(day)} style={{...s.dayToggle,...(form.days.includes(day)?{background:form.color,color:"#fff",borderColor:form.color}:{})}}>{WEEKDAYS[i]}</button>)}</div></div>
-    <div style={s.fg}><label style={s.lbl}>Übungen</label><div style={{display:"flex",gap:9,marginBottom:9}}><input style={{...s.inp,flex:1}} value={exInput} onChange={e=>setExInput(e.target.value)} placeholder="Übung hinzufügen..." onKeyDown={e=>e.key==="Enter"&&addEx()}/><button style={s.addBtn} onClick={addEx}>{IC.plus}</button></div><div style={{display:"flex",flexDirection:"column",gap:7}}>{form.exercises.map((ex,idx)=>(<div key={idx} style={{display:"flex",alignItems:"center",gap:9,background:"#0D0D0F",borderRadius:9,padding:"9px 11px"}}><div style={{position:"relative",flexShrink:0,cursor:"pointer"}} onClick={()=>fileRefs.current[idx]?.click()}>{ex.photo?<img src={ex.photo} alt={ex.name} style={{width:40,height:40,borderRadius:7,objectFit:"cover"}}/>:<div style={{width:40,height:40,borderRadius:7,background:"#1A1A1F",border:"1px dashed #3A3A40",display:"flex",alignItems:"center",justifyContent:"center",color:"#555"}}>{IC.camera}</div>}<input ref={el=>fileRefs.current[idx]=el} type="file" accept="image/*" style={{display:"none"}} onChange={e=>setExPhoto(idx,e.target.files[0])}/></div><input style={{flex:1,fontSize:15,fontWeight:600,background:"transparent",border:"none",borderBottom:"1px solid #2A2A30",color:"#F0EDE8",padding:"2px 4px",fontFamily:"'DM Sans',sans-serif",outline:"none"}} value={ex.name} onChange={e=>setForm(f=>{const ex=[...f.exercises];ex[idx]={...ex[idx],name:e.target.value};return{...f,exercises:ex};})} onFocus={e=>e.target.style.borderBottomColor="#FF6B35"} onBlur={e=>e.target.style.borderBottomColor="#2A2A30"}/><button style={{background:"transparent",border:"none",color:"#444",cursor:"pointer",display:"flex",padding:3}} onClick={()=>setForm(f=>({...f,exercises:f.exercises.filter((_,i)=>i!==idx)}))}>{IC.x}</button></div>))}</div></div>
+    <div style={s.fg}><label style={s.lbl}>Übungen</label><div style={{display:"flex",gap:9,marginBottom:9}}><input style={{...s.inp,flex:1}} value={exInput} onChange={e=>setExInput(e.target.value)} placeholder="Übung hinzufügen..." onKeyDown={e=>e.key==="Enter"&&addEx()}/><button style={s.addBtn} onClick={addEx}>{IC.plus}</button></div><div style={{display:"flex",flexDirection:"column",gap:7}}>{form.exercises.map((ex,idx)=>(<div key={idx} style={{display:"flex",alignItems:"center",gap:9,background:"#0D0D0F",borderRadius:9,padding:"9px 11px"}}><div style={{position:"relative",flexShrink:0,cursor:"pointer"}} onClick={()=>fileRefs.current[idx]?.click()}>{ex.photo?<img src={ex.photo} alt={ex.name} style={{width:40,height:40,borderRadius:7,objectFit:"cover"}}/>:<div style={{width:40,height:40,borderRadius:7,background:"#1A1A1F",border:"1px dashed #3A3A40",display:"flex",alignItems:"center",justifyContent:"center",color:"#555"}}>{IC.camera}</div>}<input ref={el=>fileRefs.current[idx]=el} type="file" accept="image/*" style={{display:"none"}} onChange={e=>setExPhoto(idx,e.target.files[0])}/></div><input style={{flex:1,fontSize:15,fontWeight:600,background:"transparent",border:"none",borderBottom:"1px solid #2A2A30",color:"#F0EDE8",padding:"2px 4px",fontFamily:"'DM Sans',sans-serif",outline:"none"}} value={ex.name} onChange={e=>setForm(f=>{const ex=[...f.exercises];ex[idx]={...ex[idx],name:e.target.value};return{...f,exercises:ex};})} onFocus={e=>e.target.style.borderBottomColor="#FF6B35"} onBlur={e=>e.target.style.borderBottomColor="#2A2A30"}/>
+<div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+  <input type="number" placeholder="Wdh" style={{width:52,background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"3px 6px",color:"#FF6B35",fontSize:12,fontFamily:"'DM Sans',sans-serif",outline:"none",textAlign:"center"}} value={ex.reps||""} onChange={e=>setForm(f=>{const exs=[...f.exercises];exs[idx]={...exs[idx],reps:e.target.value};return{...f,exercises:exs};})}/>
+  <span style={{fontSize:10,color:"#666"}}>Wdh</span>
+</div>
+<button style={{background:"transparent",border:"none",color:"#444",cursor:"pointer",display:"flex",padding:3}} onClick={()=>setForm(f=>({...f,exercises:f.exercises.filter((_,i)=>i!==idx)}))}>{IC.x}</button></div>))}</div></div>
     <div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={onClose}>Abbrechen</button><button style={{...s.primaryBtn,flex:1}} onClick={save}>{isEdit?"Speichern":"Plan erstellen"}</button></div>
   </div></div>);}
 function QuickLogModal({data,setData,onClose,notify}){const [name,setName]=useState(""), [dur,setDur]=useState("");const save=()=>{if(!name)return notify("Name fehlt","error");setData(d=>({...d,workouts:[{id:Date.now(),planId:null,name,date:todayStr(),duration:parseInt(dur)||0,note:"",photo:null,exercises:[]},...d.workouts]}));notify("Gestartet! 🚀");onClose();};return(<div style={s.overlay2} onClick={onClose}><div style={s.modal} onClick={e=>e.stopPropagation()} className="dropIn"><h2 style={s.modalTitle}>Schnell-Log</h2><div style={s.fg}><label style={s.lbl}>Name</label><input style={s.inp} value={name} onChange={e=>setName(e.target.value)} placeholder="Training Name" autoFocus/></div><div style={s.fg}><label style={s.lbl}>Dauer (Min)</label><input style={s.inp} type="number" value={dur} onChange={e=>setDur(e.target.value)} placeholder="60"/></div><div style={{display:"flex",gap:11,marginTop:18}}><button style={s.secBtn} onClick={onClose}>Abbrechen</button><button style={{...s.primaryBtn,flex:1}} onClick={save}>Speichern</button></div></div></div>);}
