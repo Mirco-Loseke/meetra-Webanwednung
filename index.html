@@ -315,7 +315,28 @@ function FitForge(){
   const [notifOpen,setNotifOpen]=useState(false);
   const [toast,setToast]=useState(null);
   const [showLoadingUI, setShowLoadingUI] = useState(false);
+  const [lastSync, setLastSync] = useState(null);
   const hasCachedData = data !== defaultData || library.length > 0 || Object.keys(prs).length > 2 || Object.keys(nutrition).length > 0;
+
+  const syncCloud = async () => {
+    if(!authUser) return;
+    showToast("Synchronisierung läuft...", "info");
+    try {
+        const [d,u,p,n,lib,wp] = await Promise.all([
+          fbGet("data", defaultData),
+          fbGet("user", defaultUser),
+          fbGet("prs",  defaultPRs),
+          fbGet("nutrition", {}),
+          fbGet("library", []),
+          fbGet("weekPlans", {}),
+        ]);
+        setData(d); setUser(u); setPrs(p); setNutrition(n); setLibrary(lib); setWeekPlans(wp);
+        setLastSync(new Date());
+        showToast("Synchronisierung erfolgreich! 🔄");
+    } catch(e) {
+        showToast("Sync-Fehler: " + e.message, "error");
+    }
+  };
 
   useEffect(() => {
     if (authLoading) {
@@ -370,7 +391,11 @@ function FitForge(){
             fbGet("weekPlans", {}),
           ]);
           if(window.dbg) dbg('✅ Daten geladen! Zeige App...', '#0f0');
-          if(!cancelled){ setData(d); setUser(u); setPrs(p); setNutrition(n); setLibrary(lib); setWeekPlans(wp); setLoaded(true); }
+          if(!cancelled){ 
+            setData(d); setUser(u); setPrs(p); setNutrition(n); setLibrary(lib); setWeekPlans(wp); 
+            setLastSync(new Date());
+            setLoaded(true); 
+          }
         } catch(e) {
           if(window.dbg) dbg('❌ Datenfehler: '+e.message, '#f55');
           if(!cancelled){ setData(defaultData); setUser(defaultUser); setPrs(defaultPRs); setNutrition({}); setLibrary([]); setWeekPlans({}); setLoaded(true); }
@@ -505,7 +530,10 @@ function FitForge(){
             <button key={id} style={{...s.navItem,...(view===id?s.navOn:{})}} onClick={()=>{setView(id);closeAll();if(isMobile)setSidebarOpen(false);}}><span style={{display:"flex",flexShrink:0}}>{icon}</span><span>{label}</span></button>
           ))}
         </nav>
-        <div style={{paddingTop:20}}><div style={s.streakCard}><span style={{color:"#fff",display:"flex"}}>{IC.fire}</span><div><div style={s.streakN}>{streak} Tage</div><div style={s.streakL}>Diese Woche</div></div></div></div>
+        <div style={{paddingTop:20, display:"flex", flexDirection:"column", gap:10}}>
+          <div style={s.streakCard}><span style={{color:"#fff",display:"flex"}}>{IC.fire}</span><div><div style={s.streakN}>{streak} Tage</div><div style={s.streakL}>Diese Woche</div></div></div>
+          {lastSync && <div style={{fontSize:10, color:"#444", textAlign:"center", padding:"0 10px"}}>Cloud Sync: {lastSync.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>}
+        </div>
       </aside>
       <main style={{...s.main, marginLeft: isMobile ? 0 : 236}}>
         <div style={s.topBar}>
@@ -553,6 +581,13 @@ function FitForge(){
                   {IC.edit} Profil bearbeiten
                 </button>
                 <div style={{height:1,background:"#1E1E24",margin:"0 16px"}}/>
+                <button 
+                  style={{display:"flex",alignItems:"center",gap:8,width:"calc(100% - 32px)",background:"rgba(0,217,192,0.1)",border:"none",color:"#00D9C0",cursor:"pointer",padding:"10px 16px",fontSize:11,fontWeight:700,borderRadius:8,margin:"10px 16px"}} 
+                  onClick={()=>{setProfileOpen(false); syncCloud();}}
+                >
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  Daten vom Server laden
+                </button>
                 <div style={{padding:"8px 16px 6px",fontSize:10,color:"#444",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🔑 {authUser?.email}</div>
                 <button style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"transparent",border:"none",color:"#EF476F",cursor:"pointer",padding:"10px 16px 14px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}} onClick={async()=>{setProfileOpen(false);await window.firebaseSignOut();}}>
                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
