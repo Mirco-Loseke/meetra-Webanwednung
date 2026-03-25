@@ -49,6 +49,7 @@
       data:   () => snap.data() || {}
     }));
     window.firebaseSetDoc = (ref, data) => ref.set(data);
+    window.firebaseOnSnapshot = (ref, cb, err) => ref.onSnapshot(cb, err);
 
     // Storage helpers
     window.firebaseStorage        = _stor;
@@ -96,7 +97,7 @@ body{background:#0D0D0F;color:#F0EDE8;font-family:'DM Sans',sans-serif;}
 .docCard:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,0.5);}
 input:focus,select:focus,textarea:focus{border-color:#FF6B35!important;outline:none;}
 input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
-input[type=color]{-webkit-appearance:none;padding:0;}
+input[type=color]{-webkit-appearance:none;appearance:none;padding:0;}
 input[type=color]::-webkit-color-swatch-wrapper{padding:0;}
 input[type=color]::-webkit-color-swatch{border:none;border-radius:7px;}
 .markAllBtn{background:transparent;border:none;color:#FF6B35;cursor:pointer;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;}
@@ -369,89 +370,130 @@ function FitForge(){
   },[authUser, hasCachedData, loaded]);
 
 
-  // ── Auth state listener ────────────────────────────────────────────────────
-  useEffect(()=>{
-    let unsubFn = null;
+  const lastSyncRef = useRef({});
+
+  // ── Auth state listener & Real-time Listeners ─────────────────────────────
+  useEffect(() => {
+    let unsubs = [];
     let cancelled = false;
 
-    const loadUserData = async (fbUser) => {
-      if(cancelled) return;
-      if(window.dbg) dbg(fbUser ? '👤 Nutzer eingeloggt: ' + fbUser.email : '🚪 Kein Nutzer - zeige Login', fbUser?'#0f0':'#ff0');
+    const setupListeners = (fbUser) => {
+      if (cancelled) return;
       setAuthUser(fbUser);
       setAuthLoading(false);
-      if(fbUser){
-        try {
-          if(window.dbg) dbg('📦 Lade Daten aus Firestore...', '#ff0');
-          const [d,u,p,n,lib,wp] = await Promise.all([
-            fbGet("data", defaultData),
-            fbGet("user", defaultUser),
-            fbGet("prs",  defaultPRs),
-            fbGet("nutrition", {}),
-            fbGet("library", []),
-            fbGet("weekPlans", {}),
-          ]);
-          if(window.dbg) dbg('✅ Daten geladen! Zeige App...', '#0f0');
-          if(!cancelled){ 
-            setData(d); setUser(u); setPrs(p); setNutrition(n); setLibrary(lib); setWeekPlans(wp); 
-            setLastSync(new Date());
-            setLoaded(true); 
-          }
-        } catch(e) {
-          if(window.dbg) dbg('❌ Datenfehler: '+e.message, '#f55');
-          if(!cancelled){ setData(defaultData); setUser(defaultUser); setPrs(defaultPRs); setNutrition({}); setLibrary([]); setWeekPlans({}); setLoaded(true); }
-        }
 
-        if(window.dbg) dbg('🚀 setLoaded(true) wird aufgerufen', '#0ff');
-        if(!cancelled) setLoaded(true);
+      if (fbUser) {
+        if (window.dbg) dbg('👤 Nutzer eingeloggt: ' + fbUser.email, '#0f0');
+        const uid = fbUser.uid;
+        const syncKeys = [
+          { key: "data", setter: setData, df: defaultData },
+          { key: "user", setter: setUser, df: defaultUser },
+          { key: "prs", setter: setPrs, df: defaultPRs },
+          { key: "nutrition", setter: setNutrition, df: {} },
+          { key: "library", setter: setLibrary, df: [] },
+          { key: "weekPlans", setter: setWeekPlans, df: {} }
+        ];
+
+        let pendingInitial = syncKeys.length;
+
+        syncKeys.forEach(({ key, setter, df }) => {
+          const ref = window.firebaseDoc(window.firebaseDb, "users", uid, "fitforge", key);
+          const unsub = window.firebaseOnSnapshot(ref, (snap) => {
+            if (cancelled) return;
+            
+            if (snap.exists()) {
+              const cloudVal = snap.data().value;
+              const cloudStr = JSON.stringify(cloudVal);
+              
+              // Only update state if cloud data differs from current local state
+              // This is crucial to prevent "echo" loops and UI jitter
+              if (cloudStr !== lastSyncRef.current[key]) {
+                if (window.dbg && !lastSyncRef.current[key]) dbg(`📥 ${key} geladen`, '#0ff');
+                localStorage.setItem("ff_" + key, cloudStr);
+                lastSyncRef.current[key] = cloudStr;
+                setter(cloudVal);
+              }
+            } else {
+              if (window.dbg) dbg(`ℹ️ ${key} neu/leer auf Cloud`, '#aaa');
+              // If not found in cloud, we keep what's in LocalStorage (set via useState init)
+              // and it will be pushed to cloud automatically once loaded=true
+            }
+
+            pendingInitial--;
+            if (pendingInitial <= 0 && !loaded) {
+              if (window.dbg) dbg('🚀 Echtzeit-Synchronisierung bereit!', '#0f0');
+              setLoaded(true);
+              setLastSync(new Date());
+            }
+          }, (err) => {
+            if (window.dbg) dbg(`❌ Snapshot Fehler (${key}): ${err.message}`, '#f55');
+            // On error, we still try to proceed
+            pendingInitial--;
+            if (pendingInitial <= 0) setLoaded(true);
+          });
+          unsubs.push(unsub);
+        });
       } else {
-        if(!cancelled){ setData(defaultData); setUser(defaultUser); setPrs(defaultPRs); setNutrition({}); setLibrary([]); setWeekPlans({}); setLoaded(false); }
+        if (window.dbg) dbg('🚪 Nutzer ausgeloggt', '#ff0');
+        setLoaded(false);
+        unsubs.forEach(fn => fn());
+        unsubs = [];
       }
     };
 
-    const attach = () => {
-      if(cancelled) return;
-      if(window.firebaseOnAuthStateChanged){
-        unsubFn = window.firebaseOnAuthStateChanged(loadUserData);
+    const attachAuth = () => {
+      if (cancelled) return;
+      if (window.firebaseOnAuthStateChanged) {
+        window.firebaseOnAuthStateChanged(setupListeners);
       } else {
-        setTimeout(attach, 50);
+        setTimeout(attachAuth, 100);
       }
     };
 
-    // Also listen for the firebaseReady event as a faster trigger
-    const onReady = () => attach();
+    const onReady = () => attachAuth();
     window.addEventListener('firebaseReady', onReady);
-    attach();
+    if (window.firebaseReady) attachAuth();
 
-    // Hard timeout: if after 8 seconds still authLoading, force show login
-    const timeout = setTimeout(()=>{
-      if(!cancelled){
-        console.warn("Firebase timeout – showing login");
+    // Safety timeout
+    const t = setTimeout(() => {
+      if (!cancelled && authLoading) {
         setAuthLoading(false);
         setLoaded(false);
       }
-    }, 8000);
+    }, 10000);
 
-    return ()=>{
+    return () => {
       cancelled = true;
       window.removeEventListener('firebaseReady', onReady);
-      clearTimeout(timeout);
-      if(typeof unsubFn === "function") unsubFn();
+      clearTimeout(t);
+      unsubs.forEach(fn => fn());
     };
-  },[]);
+  }, []);
 
-  // ── Sync to Firestore on every change (debounced 800ms) ───────────────────
-  const debRef=useRef({});
-  const syncFb=(key,val)=>{
-    if(!authUser)return;
+  // ── Sync to Firestore on local change (debounced) ────────────────────────
+  const debRef = useRef({});
+  const syncToCloud = (key, val) => {
+    if (!authUser || !loaded) return;
+    const valStr = JSON.stringify(val);
+    
+    // VERY IMPORTANT: Skip if this change just came FROM the cloud
+    if (valStr === lastSyncRef.current[key]) return;
+
     clearTimeout(debRef.current[key]);
-    debRef.current[key]=setTimeout(()=>fbSet(key,val),800);
+    debRef.current[key] = setTimeout(() => {
+      if (window.dbg) dbg(`📤 Speicher ${key} in Cloud...`, '#ff0');
+      fbSet(key, val);
+      lastSyncRef.current[key] = valStr; // Mark as "synced"
+      setLastSync(new Date());
+    }, 1200);
   };
-  useEffect(()=>{if(loaded)syncFb("data",data);},[data,loaded]);
-  useEffect(()=>{if(loaded)syncFb("user",user);},[user,loaded]);
-  useEffect(()=>{if(loaded)syncFb("prs",prs);},[prs,loaded]);
-  useEffect(()=>{if(loaded)syncFb("nutrition",nutrition);},[nutrition,loaded]);
-  useEffect(()=>{if(loaded)syncFb("library",library);},[library,loaded]);
-  useEffect(()=>{if(loaded)syncFb("weekPlans",weekPlans);},[weekPlans,loaded]);
+
+  useEffect(() => { syncToCloud("data", data); }, [data, loaded]);
+  useEffect(() => { syncToCloud("user", user); }, [user, loaded]);
+  useEffect(() => { syncToCloud("prs", prs); }, [prs, loaded]);
+  useEffect(() => { syncToCloud("nutrition", nutrition); }, [nutrition, loaded]);
+  useEffect(() => { syncToCloud("library", library); }, [library, loaded]);
+  useEffect(() => { syncToCloud("weekPlans", weekPlans); }, [weekPlans, loaded]);
 
   useEffect(()=>{setAnimK(k=>k+1);},[view]);
   useEffect(()=>{
