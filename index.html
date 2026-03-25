@@ -362,12 +362,8 @@ function FitForge(){
     return ()=>window.removeEventListener("resize",handleResize);
   },[]);
 
-  useEffect(()=>{
-    if(!loaded && authUser && hasCachedData){
-       // If we have cached data, we can consider the "initial" state loaded for UI purposes
-       setLoaded(true);
-    }
-  },[authUser, hasCachedData, loaded]);
+  // Data is loaded from LocalStorage immediately to show something to the user.
+  // 'loaded' will be set to true only when we've established a real-time connection with Firestore.
 
 
   const lastSyncRef = useRef({});
@@ -454,13 +450,16 @@ function FitForge(){
     window.addEventListener('firebaseReady', onReady);
     if (window.firebaseReady) attachAuth();
 
-    // Safety timeout
+    // Safety timeout: if after 15 seconds still no snapshots, assume ready to write
     const t = setTimeout(() => {
       if (!cancelled && authLoading) {
         setAuthLoading(false);
-        setLoaded(false);
       }
-    }, 10000);
+      if (!cancelled && !loaded && authUser) {
+        if (window.dbg) dbg('⚠️ Sync Timeout - starte Schreibmodus', '#f80');
+        setLoaded(true);
+      }
+    }, 15000);
 
     return () => {
       cancelled = true;
@@ -481,11 +480,12 @@ function FitForge(){
 
     clearTimeout(debRef.current[key]);
     debRef.current[key] = setTimeout(() => {
-      if (window.dbg) dbg(`📤 Speicher ${key} in Cloud...`, '#ff0');
-      fbSet(key, val);
-      lastSyncRef.current[key] = valStr; // Mark as "synced"
-      setLastSync(new Date());
-    }, 1200);
+      if (window.dbg) dbg(`📤 Synchronisiere ${key}...`, '#ff0');
+      fbSet(key, val).then(() => {
+        // We set the ref AFTER the write initiated to ensure it matches incoming snapshots
+        lastSyncRef.current[key] = valStr;
+      });
+    }, 300);
   };
 
   useEffect(() => { syncToCloud("data", data); }, [data, loaded]);
