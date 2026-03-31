@@ -189,33 +189,35 @@ const fbGet = async (key, fallback) => {
   try {
     const uid = getUid();
     if (window.firebaseDb && uid) {
-      // Adjusted path to match user's Firestore rules: fitforge/{uid}_{key}
       const snap = await window.firebaseGetDoc(window.firebaseDoc(window.firebaseDb, "fitforge", `${uid}_${key}`));
       if (snap.exists()) {
         const val = snap.data().value;
-        localStorage.setItem("ff_" + key, JSON.stringify(val));
+        localStorage.setItem(`ff_${uid}_${key}`, JSON.stringify(val));
         return val;
       }
     }
-    const r = localStorage.getItem("ff_" + key);
+    // Only fallback to user-specific localStorage, NEVER to global ff_ keys
+    const r = uid ? localStorage.getItem(`ff_${uid}_${key}`) : null;
     return r ? JSON.parse(r) : fallback;
   } catch (e) {
-    if(window.dbg) dbg(`❌ fbGet Fehler (${key}): ${e.message}`, '#f55');
-    try { const r = localStorage.getItem("ff_" + key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
+    const uid = getUid();
+    const r = uid ? localStorage.getItem(`ff_${uid}_${key}`) : null;
+    return r ? JSON.parse(r) : fallback;
   }
 };
 
 const fbSet = async (key, value) => {
   try {
-    localStorage.setItem("ff_" + key, JSON.stringify(value));
     const uid = getUid();
+    if (uid) localStorage.setItem(`ff_${uid}_${key}`, JSON.stringify(value));
+    else localStorage.setItem("ff_" + key, JSON.stringify(value));
+
     if (window.firebaseDb && uid) {
-      // Adjusted path to match user's Firestore rules: fitforge/{uid}_{key}
       await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, "fitforge", `${uid}_${key}`), { value });
     }
   } catch(e) { 
     console.error("fbSet error:", e);
-    if(window.dbg) dbg(`❌ Cloud-Speicher Fehler: ${e.message}. Prüfe deine Firebase-Regeln!`, '#f55');
+    if(window.dbg) dbg(`❌ Cloud-Speicher Fehler: ${e.message}`, '#f55');
   }
 };
 
@@ -303,7 +305,87 @@ const IC={
   progress:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
   alert:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   ruler:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 13V5a2 2 0 012-2h14a2 2 0 012 2v8M3 13h18M3 13v6a2 2 0 002 2h14a2 2 0 002-2v-6M7 13v-3M11 13v-3M15 13v-3M19 13v-3"/></svg>,
+  timer:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M12 2v3M20 7l-2 2M4 7l2 2"/></svg>
 };
+
+const playBeep = (freq, duration, vol=0.1) => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.01);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch(e) { console.warn("Beep failed", e); }
+};
+
+function HiitTimer({duration, onFinish, isMobile}){
+  const [timeLeft, setTimeLeft] = useState(duration);
+  const [active, setActive] = useState(false);
+  const itv = useRef();
+
+  useEffect(() => {
+    if(active && timeLeft > 0){
+      itv.current = setInterval(() => {
+        setTimeLeft(t => {
+          const next = t - 1;
+          if(next === 0) { 
+            playBeep(880, 0.8, 0.2);
+            clearInterval(itv.current);
+            setActive(false);
+            if(onFinish) onFinish();
+            return 0;
+          }
+          if(next <= 3) playBeep(660, 0.2);
+          return next;
+        });
+      }, 1000);
+    } else {
+      clearInterval(itv.current);
+    }
+    return () => clearInterval(itv.current);
+  }, [active]);
+
+  const start = () => {
+    if(!active) {
+      if(timeLeft <= 0) setTimeLeft(duration);
+      playBeep(440, 0.4);
+      setActive(true);
+    } else {
+      setActive(false);
+    }
+  };
+
+  return (
+    <div style={{background:"#111114", border:"1px solid #1E1E24", borderRadius:16, padding: isMobile ? 12 : 20, display:"flex", flexDirection:"column", gap: 16, width:"100%"}}>
+      <div style={{display:"flex", justifyContent:"center", alignItems:"baseline", gap:4}}>
+        <div style={{fontFamily:"'Syne',sans-serif", fontSize:48, fontWeight:800, color:"#FF6B35", letterSpacing:1}}>
+          {timeLeft}
+        </div>
+        <div style={{fontSize:14, fontWeight:700, color:"#444"}}>SEK</div>
+      </div>
+      <div style={{display:"flex", gap:10}}>
+        <button 
+          style={{flex:2, padding: isMobile ? "12px" : "15px", background: active ? "#EF476F15" : "#06D6A015", border: `2px solid ${active ? "#EF476F" : "#06D6A0"}`, color: active ? "#EF476F" : "#06D6A0", fontWeight:800, borderRadius:8, cursor:"pointer"}}
+          onClick={start}
+        >
+          {active ? "STOP" : timeLeft === 0 ? "RESTART" : "START HIIT"}
+        </button>
+        <button 
+          style={{width:54, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, background:"#1E1E24", border:"none", borderRadius:8, cursor:"pointer"}} 
+          onClick={()=>{setActive(false); setTimeLeft(duration);}}
+        >
+          🔄
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function genNotifs(data,user){const n=[],t=new Date(),ti=t.getDay()===0?6:t.getDay()-1,tn=FULL_WEEKDAYS[ti],tmn=FULL_WEEKDAYS[(ti+1)%7];data.plans.forEach(p=>{if(p.days.includes(tn))n.push({id:`today-${p.id}`,type:"training",title:"Training heute! 💪",body:`${p.name} steht heute an!`,read:false,ts:Date.now()-3e5});if(p.days.includes(tmn))n.push({id:`tmrw-${p.id}`,type:"reminder",title:"Training morgen 📅",body:`${p.name} steht morgen auf dem Plan!`,read:false,ts:Date.now()-36e5});});const last=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];if(last){const d=Math.floor((t-new Date(last.date))/864e5);if(d>=3)n.push({id:"rest",type:"warning",title:"Lange Pause 😴",body:`Letztes Training vor ${d} Tagen!`,read:false,ts:Date.now()-18e5});}if(data.workouts.length>=5)n.push({id:`mile-${data.workouts.length}`,type:"achievement",title:"Meilenstein 🏆",body:`${data.workouts.length} Trainings – weiter so!`,read:true,ts:Date.now()-864e5});return n;}
 let _chartId=0;
@@ -489,51 +571,55 @@ function FitForge(){
       setAuthLoading(false);
 
       if (fbUser) {
-        if (window.dbg) dbg('👤 Nutzer eingeloggt: ' + fbUser.email, '#0f0');
         const uid = fbUser.uid;
-        const syncKeys = [
+        if (window.dbg) dbg('👤 Nutzer eingeloggt: ' + fbUser.email, '#0f0');
+        
+        lastSyncRef.current = {};
+
+        const privateKeys = [
           { key: "data", setter: setData, df: defaultData },
           { key: "user", setter: setUser, df: defaultUser },
           { key: "prs", setter: setPrs, df: defaultPRs },
           { key: "nutrition", setter: setNutrition, df: {} },
-          { key: "library", setter: setLibrary, df: [] },
           { key: "weekPlans", setter: setWeekPlans, df: {} },
           { key: "favFoods", setter: setFavFoods, df: [] }
         ];
 
-        let pendingInitial = syncKeys.length;
+        // 1. Initial State Sync: Load user-specific cache OR Reset immediately
+        privateKeys.forEach(({ key, setter, df }) => {
+          const local = localStorage.getItem(`ff_${uid}_${key}`);
+          if (local) {
+             const parsed = JSON.parse(local);
+             lastSyncRef.current[key] = local;
+             setter(parsed);
+          } else {
+             // CRITICAL: If no cache for THIS user, clear any previous user's data
+             setter(df);
+             lastSyncRef.current[key] = JSON.stringify(df);
+          }
+        });
 
-        syncKeys.forEach(({ key, setter, df }) => {
-          // Flattened path to match your Firestore rules: fitforge/{uid}_{key}
+        // 2. Setup Private Realtime Listeners
+        privateKeys.forEach(({ key, setter, df }) => {
           const ref = window.firebaseDoc(window.firebaseDb, "fitforge", `${uid}_${key}`);
           const unsub = window.firebaseOnSnapshot(ref, (snap) => {
             if (cancelled) return;
-            
             if (snap.exists) {
               const cloudVal = snap.data().value;
               const cloudStr = JSON.stringify(cloudVal);
-              
               if (cloudStr !== lastSyncRef.current[key]) {
-                if (window.dbg && !lastSyncRef.current[key]) dbg(`📥 ${key} aus Cloud geladen`, '#0ff');
-                localStorage.setItem("ff_" + key, cloudStr);
+                localStorage.setItem(`ff_${uid}_${key}`, cloudStr);
                 lastSyncRef.current[key] = cloudStr;
                 setter(cloudVal);
               }
             } else {
-              if (window.dbg) dbg(`ℹ️ ${key} noch nicht in Cloud vorhanden`, '#aaa');
+              // CRITICAL: Document does not exist in cloud (new user)
+              // We must ensure the state is empty/default for this user.
+              if (window.dbg) dbg(`ℹ️ ${key} leer in Cloud (Neuer Account)`, '#aaa');
+              setter(df);
+              lastSyncRef.current[key] = JSON.stringify(df);
+              localStorage.removeItem(`ff_${uid}_${key}`);
             }
-
-            pendingInitial--;
-            if (pendingInitial <= 0 && !loaded) {
-              if (window.dbg) dbg('🚀 Echtzeit-Synchronisierung bereit!', '#0f0');
-              setLoaded(true);
-              setLastSync(new Date());
-            }
-          }, (err) => {
-            if (window.dbg) dbg(`❌ Snapshot Fehler (${key}): ${err.message}`, '#f55');
-            // On error, we still try to proceed
-            pendingInitial--;
-            if (pendingInitial <= 0) setLoaded(true);
           });
           unsubs.push(unsub);
         });
@@ -542,7 +628,36 @@ function FitForge(){
         setLoaded(false);
         unsubs.forEach(fn => fn());
         unsubs = [];
+        // Reset private state on logout
+        setData(defaultData);
+        setUser(defaultUser);
+        setPrs(defaultPRs);
+        setNutrition({});
+        setWeekPlans({});
+        setFavFoods([]);
+        lastSyncRef.current = {};
       }
+
+      // ── Shared Library Listener (Always active) ───────────────────────────
+      const libRef = window.firebaseDoc(window.firebaseDb, "fitforge", "shared_library");
+      const libUnsub = window.firebaseOnSnapshot(libRef, (snap) => {
+        if (cancelled) return;
+        if (snap.exists) {
+            const libVal = snap.data().value;
+            const libStr = JSON.stringify(libVal);
+            if (libStr !== lastSyncRef.current["library"]) {
+              if (window.dbg) dbg('📚 Gemeinsame Bibliothek geladen', '#0ff');
+              localStorage.setItem("ff_library", libStr);
+              lastSyncRef.current["library"] = libStr;
+              setLibrary(libVal);
+            }
+        }
+        if (!loaded && fbUser) setLoaded(true); // Signal ready when library is fetched
+      }, (err) => {
+        if (window.dbg) dbg('❌ Library Fehler: ' + err.message, '#f55');
+        if (!loaded && fbUser) setLoaded(true);
+      });
+      unsubs.push(libUnsub);
     };
 
     const attachAuth = () => {
@@ -600,7 +715,19 @@ function FitForge(){
   useEffect(() => { syncToCloud("user", user); }, [user, loaded]);
   useEffect(() => { syncToCloud("prs", prs); }, [prs, loaded]);
   useEffect(() => { syncToCloud("nutrition", nutrition); }, [nutrition, loaded]);
-  useEffect(() => { syncToCloud("library", library); }, [library, loaded]);
+  useEffect(() => { 
+    // Library sync is shared
+    if (!authUser || !loaded) return;
+    const valStr = JSON.stringify(library);
+    if (valStr === lastSyncRef.current["library"]) return;
+    clearTimeout(debRef.current["library"]);
+    debRef.current["library"] = setTimeout(() => {
+      if (window.dbg) dbg(`📤 Synchronisiere shared library...`, '#0ff');
+      window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, "fitforge", "shared_library"), { value: library }).then(() => {
+        lastSyncRef.current["library"] = valStr;
+      });
+    }, 500);
+  }, [library, loaded]);
   useEffect(() => { syncToCloud("weekPlans", weekPlans); }, [weekPlans, loaded]);
   useEffect(() => { syncToCloud("favFoods", favFoods); }, [favFoods, loaded]);
 
@@ -724,7 +851,7 @@ function FitForge(){
               <button className="iconBtn" style={{...s.iconCircle,...(notifOpen?s.iconOn:{})}} onClick={()=>{setNotifOpen(o=>!o);setProfileOpen(false);}}>
                 {IC.bell}{unread>0&&<span style={s.badge}>{unread}</span>}
               </button>
-              {notifOpen&&<div style={{...s.dropdown,width:350}} className="dropIn" onClick={e=>e.stopPropagation()}>
+              {notifOpen&&<div style={{...s.dropdown, width: isMobile ? "min(350px, calc(100vw - 32px))" : 350, right: isMobile ? -10 : 0}} className="dropIn" onClick={e=>e.stopPropagation()}>
                 <div style={s.ddHead}><span style={s.ddTitle}>Benachrichtigungen</span>{unread>0&&<button className="markAllBtn" onClick={markAll}>Alle lesen</button>}</div>
                 <div style={{maxHeight:320,overflowY:"auto"}}>
                   {!notifs.length&&<div style={{padding:"36px 18px",textAlign:"center",color:"#555",fontSize:13}}>Alles erledigt 🎉</div>}
@@ -771,7 +898,7 @@ function FitForge(){
         {(profileOpen||notifOpen)&&<div style={s.veil} onClick={closeAll}/>}
         {toast&&<div style={{...s.toast,...(toast.type==="error"?s.toastErr:{})}} className="dropIn">{toast.type==="success"?IC.check:IC.x} {toast.msg}</div>}
         <div key={animK} className="pageEnter">
-          {view==="dashboard"&&<Dashboard data={data} user={user} onLog={()=>setLogModal(true)} onView={setView} streak={streak} totalVol={totalVol} thisWeek={thisWeek} todayNut={todayNut} isMobile={isMobile}/>}
+          {view==="dashboard"&&<Dashboard data={data} user={user} onLog={()=>{setActiveWorkout(null); setView("log");}} onView={setView} streak={streak} totalVol={totalVol} thisWeek={thisWeek} todayNut={todayNut} isMobile={isMobile}/>}
           {view==="plans"&&<Plans data={data} setData={setData} onNew={()=>setPlanModal(true)} onEdit={p=>{setEditPlan(p);setPlanModal(true);}} notify={showToast} library={library}/>}
           {view==="library"&&<LibraryPage library={library} setLibrary={setLibrary} notify={showToast}/>}
           {view==="wochenplan"&&<WochenplanPage weekPlans={weekPlans} setWeekPlans={setWeekPlans} data={data} user={user} library={library} notify={showToast}/>}
@@ -919,7 +1046,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
     if(!file)return;
     notify("Foto wird hochgeladen...");
     try {
-      const url = await uploadToStorage(file, `progress/${Date.now()}_${file.name}`);
+      const url = await uploadToStorage(file, `${authUser.uid}/progress/${Date.now()}_${file.name}`);
       const newPhoto = { id: Date.now(), date: photoDate, url, tag: photoTag };
       setData(d=>({...d, photos:[newPhoto, ...(d.photos||[])]}));
       notify("Foto gespeichert! 📸");
@@ -1589,7 +1716,6 @@ function Plans({data,setData,onNew,onEdit,notify}){
       <div style={{width:42,height:42,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14,background:plan.color+"20",color:plan.color}}>{IC.dumbbell}</div>
       <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:19,fontWeight:800,margin:"0 0 14px",letterSpacing:"-0.5px"}}>{plan.name}</h3>
       
-      {/* Plan Tags */}
       <div style={{marginBottom:14}}>
         <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:5}}>Muskelgruppen</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
@@ -1608,6 +1734,7 @@ function Plans({data,setData,onNew,onEdit,notify}){
     </div>);})}
     <div style={s.newPlanCard} onClick={onNew} className="planCard"><div style={{color:"#444",display:"flex"}}>{IC.plus}</div><span style={{color:"#666",fontSize:13}}>Neuen Plan erstellen</span></div></div>
   </div>);}
+
 function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setActiveWorkout,isMobile}){
   const [step,setStep]=useState(activeWorkout?.step || 1);
   const [planId,setPlanId]=useState(activeWorkout?.planId || data.plans[0]?.id || null);
@@ -1625,661 +1752,208 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
   const [showEndModal, setShowEndModal] = useState(false);
   const [startTime,setStartTime]=useState(activeWorkout?.startTime || null);
   const [endTime,setEndTime]=useState(activeWorkout?.endTime || null);
+  const [hiitConfig, setHiitConfig] = useState(null);
   
-  // Sync to parent
   useEffect(() => {
     if (step > 1) {
-      setActiveWorkout({
-        step, planId, date, exercises, curEx, curRound, 
-        totalRounds, totalSets, repeatRounds, timer, 
-        running, sets, startTime, endTime
-      });
-    } else if (activeWorkout) {
-      setActiveWorkout(null);
-    }
+      setActiveWorkout({ step, planId, date, exercises, curEx, curRound, totalRounds, totalSets, repeatRounds, timer, running, sets, startTime, endTime });
+    } else if (activeWorkout) { setActiveWorkout(null); }
   }, [step, planId, date, exercises, curEx, curRound, totalRounds, totalSets, repeatRounds, timer, running, sets, startTime, endTime]);
 
-  // Sync from parent timer if running in background
-  useEffect(() => {
-    if (activeWorkout && activeWorkout.timer !== timer) {
-      setTimer(activeWorkout.timer);
-    }
-  }, [activeWorkout?.timer]);
-
-  const timerRef=useRef(null);
+  useEffect(() => { if (activeWorkout && activeWorkout.timer !== timer) setTimer(activeWorkout.timer); }, [activeWorkout?.timer]);
 
   useEffect(()=>{
     const plan=data.plans.find(p=>p.id===parseInt(planId));
     if(plan){
-      // LIVE SYNC: Merge plan exercises with latest library data
       const exs=(plan.exercises||[]).map(e=>{
-        const exObj = typeof e==="string"?{name:e,photo:null,reps:""}:e;
-        // Find latest library entry
-        const libMatch = library.find(l => l.id === exObj.libId || (l.name === exObj.name && l.name));
-        
+        const exObj = typeof e==="string"?{name:e}:e;
+        const libMatch = library.find(l => l.id === exObj.libId || l.name === exObj.name);
         if (libMatch) {
-          return {
-            ...exObj,
-            photo: libMatch.thumbnail || exObj.photo,
-            description: libMatch.description,
-            // Only update track-prefs if they aren't explicitly override in plan? 
-            // Actually, the user wants "Live" behavior, so let's prefer lib if not customized in plan.
-            trackSets: exObj.trackSets ?? libMatch.trackSets ?? true,
-            trackReps: exObj.trackReps ?? libMatch.trackReps ?? true,
-            trackWeight: exObj.trackWeight ?? libMatch.trackWeight ?? true,
-            trackKcal: exObj.trackKcal ?? libMatch.trackKcal ?? false,
-            trackKm: exObj.trackKm ?? libMatch.trackKm ?? false,
-            trackIncline: exObj.trackIncline ?? libMatch.trackIncline ?? false,
-            trackTempo: exObj.trackTempo ?? libMatch.trackTempo ?? false,
-            // Defaults (sets/reps) - prefer lib if plan values are empty
-            // Prioritize library values for live sync as requested
-            sets: libMatch.sets || exObj.sets || 1,
-            reps: libMatch.reps || exObj.reps || "",
-            weight: libMatch.weight || exObj.weight || "",
-            kcal: libMatch.kcal || exObj.kcal || "",
-            km: libMatch.km || exObj.km || "",
-            incline: libMatch.incline || exObj.incline || "",
-            tempo: libMatch.tempo || exObj.tempo || ""
-
-          };
+          return { ...exObj, photo: libMatch.thumbnail, description: libMatch.description, hiitTimer: libMatch.hiitTimer, 
+            trackSets: exObj.trackSets ?? libMatch.trackSets ?? true, trackReps: exObj.trackReps ?? libMatch.trackReps ?? true,
+            trackWeight: exObj.trackWeight ?? libMatch.trackWeight ?? true, trackKcal: libMatch.trackKcal, trackKm: libMatch.trackKm,
+            trackIncline: libMatch.trackIncline, trackTempo: libMatch.trackTempo,
+            sets: libMatch.sets || exObj.sets || 1, reps: libMatch.reps || exObj.reps || "", weight: libMatch.weight || exObj.weight || "" };
         }
         return exObj;
       });
-      
       setExercises(exs);
       const initSets={};
       exs.forEach((ex,i)=>{
         const count = parseInt(ex.sets) || 1;
-        const sarr = [];
-        for(let j=0; j<count; j++){
-          sarr.push({reps:ex.reps||"", weight:ex.weight||"", incline:ex.incline||"", tempo:ex.tempo||"", preset:true});
-        }
-        initSets[i] = sarr;
+        initSets[i] = Array.from({length:count}, ()=>({reps:ex.reps||"", weight:ex.weight||"", preset:true}));
       });
       setSets(initSets);
     }
   },[planId, library]);
 
-  // Global timer is managed in FitForge now to support persistence and background tracking
-
   const fmtTimer=t=>{const m=Math.floor(t/60),s=t%60;return`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;};
-  const addSet=ei=>setSets(s=>({...s,[ei]:[...(s[ei]||[]),{reps:"",weight:""}]}));
   const updSet=(ei,si,k,v)=>setSets(s=>{const n=JSON.parse(JSON.stringify(s));if(n[ei]&&n[ei][si]){n[ei][si][k]=v;n[ei][si].preset=false;}return n;});
-
   const goNext=()=>{
-    if(curEx<exercises.length-1){
-      setCurEx(i=>i+1);
-    } else if(repeatRounds && curRound < (parseInt(totalRounds) || 1)){
-      // Wrap around for next round
-      setCurEx(0);
-      setCurRound(r=>r+1);
-      notify(`Durchgang ${curRound+1} gestartet! 💪`);
-    } else {
-      setStep(3);
-      setRunning(false);
-      const now = new Date();
-      setEndTime(now.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}));
-    }
+    if(curEx<exercises.length-1) setCurEx(i=>i+1);
+    else if(repeatRounds && curRound < (parseInt(totalRounds) || 1)){ setCurEx(0); setCurRound(r=>r+1); notify(`Durchgang ${curRound+1} gestartet! 💪`); }
+    else { setStep(3); setRunning(false); setEndTime(new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})); }
   };
-
-  const delSet=(ei,si)=>setSets(s=>{const n={...s};if(n[ei]){n[ei]=n[ei].filter((_,i)=>i!==si);}return n;});
-  const toggleSetDone=(ei,si)=>{
-    console.log(`Toggle Set Done: Ex ${ei}, Set ${si}`);
-    setSets(s=>{
-      const n=JSON.parse(JSON.stringify(s));
-      if(n[ei]&&n[ei][si]){
-        n[ei][si].done=!n[ei][si].done;
-        console.log("Set state updated:", n[ei][si]);
-      } else {
-        console.warn("Set not found in state!", {ei, si, available: n[ei]?.length});
-      }
-      return n;
-    });
-  };
+  const toggleSetDone=(ei,si)=>setSets(s=>{const n=JSON.parse(JSON.stringify(s));if(n[ei]&&n[ei][si]) n[ei][si].done=!n[ei][si].done; return n;});
 
   const save=()=>{
     const plan=data.plans.find(p=>p.id===parseInt(planId));
-    
-    // Filter out invalid sets (no reps) and empty exercises
     const parsed=exercises.map((ex,ei)=>{
       const sArr = sets[ei] || [];
-      const valid = sArr.filter(s => s.done && (parseInt(s.reps) > 0 || parseFloat(s.kcal) > 0 || parseFloat(s.km) > 0));
-
-      return {
-        name: ex.name,
-        sets: valid.map(s => ({
-          reps: parseInt(s.reps) || 0,
-          weight: parseFloat(s.weight) || 0,
-          kcal: parseFloat(s.kcal) || 0,
-          km: parseFloat(s.km) || 0,
-          incline: s.incline || "",
-          tempo: s.tempo || ""
-        }))
-      };
+      const valid = sArr.filter(s => s.done && (parseInt(s.reps)>0 || parseFloat(s.weight)>0 || parseFloat(s.kcal)>0 || parseFloat(s.km)>0));
+      return { name: ex.name, sets: valid };
     }).filter(ex => ex.sets.length > 0);
-
-
-    if(parsed.length === 0) return notify("Keine Sätze zum Speichern gefunden!", "error");
-
+    if(parsed.length === 0) return notify("Keine Sätze zum Speichern!", "error");
     parsed.forEach(ex=>{
       const best=ex.sets.reduce((b,s)=>s.weight*s.reps>b.weight*b.reps?s:b,{reps:0,weight:0});
       if(best.weight>0) onSavePR(ex.name,best.weight,best.reps);
     });
-
-    setData(d=>({...d,workouts:[{
-      id:Date.now(),
-      planId:parseInt(planId),
-      name:plan?.name||"Training",
-      date,
-      duration:Math.round(timer/60),
-      note:"",
-      photo:null,
-      exercises:parsed,
-      startTime,
-      endTime
-    },...d.workouts]}));
-
+    setData(d=>({...d,workouts:[{ id:Date.now(), planId:parseInt(planId), name:plan?.name||"Training", date, duration:Math.round(timer/60), exercises:parsed, startTime, endTime },...d.workouts]}));
     notify("Training gespeichert! 💪");
-    setStep(1);setTimer(0);setRunning(false);setCurEx(0);setCurRound(1);setStartTime(null);setEndTime(null);
+    setStep(1);setTimer(0);setRunning(false);setCurEx(0);setCurRound(1);setStartTime(null);setEndTime(null); setActiveWorkout(null);
   };
 
   const plan=data.plans.find(p=>p.id===parseInt(planId));
   const curExData=exercises[curEx];
-  const allExSets = sets[curEx] || [];
-  const setsPerRound = parseInt(totalSets) || 1;
-  const curSets = repeatRounds 
-    ? allExSets.slice((curRound - 1) * setsPerRound, curRound * setsPerRound)
-    : allExSets;
-
-  // Global index for single-set split button logic
-  const siGlobalSplit = repeatRounds ? (curRound - 1) * setsPerRound : 0;
+  const curSets = repeatRounds ? (sets[curEx]||[]).slice((curRound-1)*(parseInt(totalSets)||1), curRound*(parseInt(totalSets)||1)) : (sets[curEx]||[]);
 
   return(<div style={{...s.page, padding: isMobile ? "10px 10px 80px" : s.page.padding}}>
     <div style={s.pageHead}><div><h1 style={{...s.pageTitle, fontSize: isMobile ? 26 : 32}}>Training starten</h1><p style={s.pageSub}>Schritt {step} von 3</p></div></div>
     <div style={{...s.stepBar, gap: isMobile ? 4 : 8}}>{[1,2,3].map(n=>(<div key={n} style={{display:"flex",alignItems:"center",flex:1}}><div style={{...s.stepDot, width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, fontSize: isMobile ? 12 : 14, ...(step>=n?s.stepOn:{})}}>{step>n?IC.check:n}</div>{n<3&&<div style={{flex:1,height:2,background:step>n?"#FF6B35":"#1E1E24",transition:"background 0.3s"}}/>}</div>))}</div>
     <div style={plan ? {...s.logCard, position: "relative", borderTop: `6px solid ${plan.color}`, borderRight: "none", borderBottom: "none", borderLeft: "none", paddingTop: 46, padding: isMobile ? 16 : 24} : {...s.logCard, padding: isMobile ? 16 : 24}}>
-      {plan && (
-        <div style={{position: "absolute", top: 0, left: 24, background: plan.color, padding: "4px 14px", borderRadius: "0 0 10px 10px", color: "#000", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px"}}>
-          {plan.name}
-        </div>
-      )}
+      {plan && <div style={{position: "absolute", top: 0, left: 24, background: plan.color, padding: "4px 14px", borderRadius: "0 0 10px 10px", color: "#000", fontSize: 11, fontWeight: 900, textTransform: "uppercase"}}>{plan.name}</div>}
 
-      {/* STEP 1 - Plan & Datum */}
       {step===1&&<div className="fadeIn">
         <h3 style={s.logTitle}>Plan & Datum</h3>
         <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",gap:14,marginBottom:20}}>
           <div style={s.fg}><label style={s.lbl}>Trainingsplan</label>
-            <select className="customSelect" style={{...s.inp, borderColor: plan ? plan.color : "#2A2A30", color: plan ? plan.color : "#F0EDE8", fontWeight: plan ? 800 : "normal", background: plan ? `${plan.color}15` : "#0D0D0F", height: 44}} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
-              <option value="" style={{color: "#F0EDE8", background: "#111114"}}>Kein Plan</option>
-              {data.plans.map(p=><option key={p.id} value={p.id} style={{color: p.color, fontWeight: 800, background: "#111114"}}>{p.name}</option>)}
+            <select className="customSelect" style={{...s.inp, display: "block", height: 44, borderColor: plan?.color || "#2A2A30", color: plan?.color || "#F0EDE8", background: plan ? `${plan.color}15` : "#0D0D0F"}} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
+              <option value="">Kein Plan</option>
+              {data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-          <div style={s.fg}><label style={s.lbl}>Datum</label><input style={{...s.inp, height: 44}} type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+          <div style={s.fg}><label style={s.lbl}>Datum</label><input style={{...s.inp, display: "block", height: 44}} type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
         </div>
 
-        {/* Repeat toggle & Config */}
         <div style={{background:"#0D0D0F",borderRadius:12,padding:"14px 18px",marginBottom:20,border:"1px solid #1E1E24"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:repeatRounds?14:0}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:14,marginBottom:3}}>Durchgang wiederholen</div>
-              <div style={{fontSize:12,color:"#666"}}>Alle Übungen mehrfach durchlaufen</div>
-            </div>
-            <div style={{...s.toggle,...(repeatRounds?s.toggleOn:{})}} onClick={()=>setRepeatRounds(r=>!r)}>
-              <div style={{...s.thumb,...(repeatRounds?s.thumbOn:{})}}/>
-            </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontWeight:700,fontSize:14}}>Durchgang wiederholen</div><div style={{fontSize:12,color:"#666"}}>Alle Übungen mehrfach durchlaufen</div></div>
+            <div style={{...s.toggle,...(repeatRounds?s.toggleOn:{})}} onClick={()=>setRepeatRounds(r=>!r)}><div style={{...s.thumb,...(repeatRounds?s.thumbOn:{})}}/></div>
           </div>
-          {repeatRounds&&<div className="fadeIn" style={{display:"flex",flexDirection:"column",gap:10,paddingTop:12,borderTop:"1px solid #1A1A1F"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <label style={{fontSize:12,fontWeight:700,color:"#aaa"}}>Anzahl Durchgänge:</label>
-              <input type="number" min="1" max="10" placeholder="1" style={{...s.inp,width:60,padding:"6px 10px",textAlign:"center"}} value={totalRounds} onChange={e=>setTotalRounds(e.target.value===""?"":Math.max(1, parseInt(e.target.value)||1))}/>
-            </div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <label style={{fontSize:12,fontWeight:700,color:"#aaa"}}>Sätze pro Übung:</label>
-              <input type="number" min="1" max="10" placeholder="1" style={{...s.inp,width:60,padding:"6px 10px",textAlign:"center"}} value={totalSets} onChange={e=>setTotalSets(e.target.value===""?"":Math.max(1, parseInt(e.target.value)||1))}/>
-            </div>
+          {repeatRounds&&<div style={{display:"flex",flexDirection:"column",gap:10,paddingTop:12,borderTop:"1px solid #1A1A1F",marginTop:10}}>
+            <div style={{display:"flex",justifyContent:"space-between"}}><label style={{fontSize:12,fontWeight:700}}>Anzahl Durchgänge:</label><input type="number" style={{...s.inp,width:60,padding:6}} value={totalRounds} onChange={e=>setTotalRounds(e.target.value)}/></div>
+            <div style={{display:"flex",justifyContent:"space-between"}}><label style={{fontSize:12,fontWeight:700}}>Sätze pro Übung:</label><input type="number" style={{...s.inp,width:60,padding:6}} value={totalSets} onChange={e=>setTotalSets(e.target.value)}/></div>
           </div>}
         </div>
 
         {plan&&<div style={{background:"#0D0D0F",borderRadius:12,padding:16,marginBottom:20,border:"1px solid #1A1A1F"}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#888",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Übungen im Plan:</div>
-          {(exercises||[]).map((e,i)=>{
-            return(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:i<exercises.length-1?"1px solid #1A1A1F":"none"}}>
-            {e.photo?<MediaDisplay src={e.photo} style={{width:36,height:36,borderRadius:8,objectFit:"contain",background:"#000",flexShrink:0}}/>:<div style={{width:36,height:36,borderRadius:8,background:"#1A1A1F",display:"flex",alignItems:"center",justifyContent:"center",color:"#555",flexShrink:0}}>{IC.dumbbell}</div>}
-
-
-            <div style={{flex:1}}>
-              <div style={{fontSize:14,fontWeight:600}}>{e.name}</div>
-              <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
-                {e.trackReps!==false && (
-                  <div style={{display:"flex",alignItems:"center",background:"#FF6B3515",borderRadius:6,padding:"2px 6px"}}>
-                    <input type="number" style={{width:32,background:"transparent",border:"none",color:"#FF6B35",fontSize:13,fontWeight:800,outline:"none",textAlign:"center"}} value={e.reps||""} onChange={(ev)=>setExercises(prev=>{const n=[...prev];n[i]={...n[i],reps:ev.target.value};return n;})} placeholder="0"/>
-                    <span style={{fontSize:10,color:"#FF6B35",fontWeight:800}}>Wdh</span>
-                  </div>
-                )}
-                {e.trackWeight!==false && (
-                  <div style={{display:"flex",alignItems:"center",background:"#A78BFA15",borderRadius:6,padding:"2px 6px"}}>
-                    <input type="number" style={{width:40,background:"transparent",border:"none",color:"#A78BFA",fontSize:13,fontWeight:800,outline:"none",textAlign:"center"}} value={e.weight||""} onChange={(ev)=>setExercises(prev=>{const n=[...prev];n[i]={...n[i],weight:ev.target.value};return n;})} placeholder="0"/>
-                    <span style={{fontSize:10,color:"#A78BFA",fontWeight:800}}>kg</span>
-                  </div>
-                )}
-                {e.trackKcal && (
-                  <div style={{display:"flex",alignItems:"center",background:"#FF6B6B15",borderRadius:6,padding:"2px 6px"}}>
-                    <input type="number" style={{width:40,background:"transparent",border:"none",color:"#FF6B6B",fontSize:13,fontWeight:800,outline:"none",textAlign:"center"}} value={e.kcal||""} onChange={(ev)=>setExercises(prev=>{const n=[...prev];n[i]={...n[i],kcal:ev.target.value};return n;})} placeholder="0"/>
-                    <span style={{fontSize:10,color:"#FF6B6B",fontWeight:800}}>kcal</span>
-                  </div>
-                )}
-                {e.trackKm && (
-                  <div style={{display:"flex",alignItems:"center",background:"#4CC9F015",borderRadius:6,padding:"2px 6px"}}>
-                    <input type="number" style={{width:40,background:"transparent",border:"none",color:"#4CC9F0",fontSize:13,fontWeight:800,outline:"none",textAlign:"center"}} value={e.km||""} onChange={(ev)=>setExercises(prev=>{const n=[...prev];n[i]={...n[i],km:ev.target.value};return n;})} placeholder="0"/>
-                    <span style={{fontSize:10,color:"#4CC9F0",fontWeight:800}}>km</span>
-                  </div>
-                )}
-                {e.trackIncline && (
-                  <div style={{display:"flex",alignItems:"center",background:"#FFD16615",borderRadius:6,padding:"2px 6px"}}>
-                    <input type="number" style={{width:30,background:"transparent",border:"none",color:"#FFD166",fontSize:13,fontWeight:800,outline:"none",textAlign:"center"}} value={e.incline||""} onChange={(ev)=>setExercises(prev=>{const n=[...prev];n[i]={...n[i],incline:ev.target.value};return n;})} placeholder="0"/>
-                    <span style={{fontSize:10,color:"#FFD166",fontWeight:800}}>%</span>
-                  </div>
-                )}
-                {e.trackTempo && (
-                  <div style={{display:"flex",alignItems:"center",background:"#EF476F15",borderRadius:6,padding:"2px 6px"}}>
-                    <input type="text" style={{width:40,background:"transparent",border:"none",color:"#EF476F",fontSize:13,fontWeight:800,outline:"none",textAlign:"center"}} value={e.tempo||""} onChange={(ev)=>setExercises(prev=>{const n=[...prev];n[i]={...n[i],tempo:ev.target.value};return n;})} placeholder="0"/>
-                    <span style={{fontSize:10,color:"#EF476F",fontWeight:800}}>km/h</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>);})}
+          {exercises.map((e,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:i<exercises.length-1?"1px solid #1A1A1F":"none"}}>
+            <div style={{width:36,height:36,background:"#1A1A1F",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>{IC.dumbbell}</div>
+            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600}}>{e.name}</div></div>
+          </div>))}
         </div>}
         <button style={s.primaryBtn} onClick={()=>{
-          if(!planId)return notify("Bitte Plan auswählen","error");
-          
+          if(!planId) return notify("Plan wählen","error");
           const rounds = repeatRounds ? (parseInt(totalRounds)||1) : 1;
-          const setsPerEx = repeatRounds ? (parseInt(totalSets)||1) : 1; // Used as baseline if not per-exercise
-          
-          const newSets = {};
-          exercises.forEach((ex, i) => {
-            const allSets = [];
-            const count = repeatRounds ? (rounds * setsPerEx) : (parseInt(ex.sets) || 1);
-            for(let s=0; s<count; s++){
-              allSets.push({
-                 reps: ex.reps || "",
-                 weight: ex.weight || "",
-                 kcal: ex.kcal || "",
-                 km: ex.km || "",
-                 incline: ex.incline || "",
-                 tempo: ex.tempo || "",
-                 preset: true
-
-              });
-            }
-            newSets[i] = allSets;
+          const setsPerEx = repeatRounds ? (parseInt(totalSets)||1) : 1;
+          const ns = {};
+          exercises.forEach((ex,i)=>{ 
+            const count = repeatRounds? (rounds*setsPerEx) : (parseInt(ex.sets)||1);
+            ns[i] = Array.from({length:count}, ()=>({ reps: ex.reps||"", weight: ex.weight||"", preset: true }));
           });
-          setSets(newSets);
-
-          setStep(2);
-          setRunning(true);
-          setTimer(0);
-          setStartTime(new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}));
+          setSets(ns); setStep(2); setRunning(true); setTimer(0); setStartTime(new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}));
         }}>▶ Training starten</button>
       </div>}
 
-      {/* STEP 2 - Training mit Timer */}
       {step===2&&<div className="fadeIn">
-        {/* Timer */}
-        <div 
-          style={{marginBottom:22,padding:"10px 20px",background:"#0D0D0F",borderRadius:16,border:"1px solid #1E1E24",display:"flex",alignItems:"center",justifyContent:"center",minHeight:64,cursor:"pointer"}}
-          onClick={()=>setRunning(r=>!r)}
-        >
+        <div style={{marginBottom:22,padding:"10px 20px",background:"#0D0D0F",borderRadius:16,border:"1px solid #1E1E24",display:"flex",alignItems:"center",justifyContent:"center",minHeight:64,cursor:"pointer"}} onClick={()=>setRunning(r=>!r)}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:38,fontWeight:800,color:"#FF6B35",letterSpacing:2,lineHeight:1}}>
-              {fmtTimer(timer)}
-            </div>
-            <div style={{color:"#FF6B35",display:"flex",alignItems:"center",justifyContent:"center",fontSize:38}}>
-              {running 
-                ? <svg width="0.8em" height="0.8em" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                : <svg width="0.8em" height="0.8em" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
-            </div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:38,fontWeight:800,color:"#FF6B35",letterSpacing:2,lineHeight:1}}>{fmtTimer(timer)}</div>
+            <div style={{color:"#FF6B35",display:"flex",alignItems:"center",justifyContent:"center",fontSize:38}}>{running ? <svg width="0.8em" height="0.8em" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> : <svg width="0.8em" height="0.8em" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}</div>
           </div>
         </div>
 
-        {curExData&&<div style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile ? 22 : 24,fontWeight:800,color:"#fff",marginBottom:12,paddingLeft:4}}>
-          {curExData.name}
-        </div>}
-
-        {curExData&&<div>
-          {/* Big exercise image */}
-          <div style={{width:"100%",height: isMobile ? 160 : 200,borderRadius:16,overflow:"hidden",marginBottom:16,background:"#0D0D0F",border:"1px solid #1E1E24",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
-            {curExData.photo
-              ?<img src={curExData.photo} style={{width:"100%",height:"100%",objectFit:"contain"}}/>
-              :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,color:"#2A2A30"}}>
-                <svg width="64" height="64" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1"><path d="M6.5 6.5h11M6.5 17.5h11"/><rect x="2" y="5" width="3" height="14" rx="1.5"/><rect x="19" y="5" width="3" height="14" rx="1.5"/><path d="M5 12h14"/></svg>
-                <span style={{fontSize:13}}>Kein Bild hinterlegt</span>
-              </div>
-            }
-            <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(0,0,0,0.85))",padding:"20px 16px 14px",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-              <div style={{flex:1, marginRight:10}}>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {curExData.trackSets!==false&&<span style={{fontSize:11,color:"#00D9C0",fontWeight:700,background:"#00D9C025",padding:"2px 8px",borderRadius:6}}>{curExData.sets||0} Sätze</span>}
-                  {curExData.trackReps!==false&&<span style={{fontSize:11,color:"#FF6B35",fontWeight:700,background:"#FF6B3525",padding:"2px 8px",borderRadius:6}}>{curExData.reps||0} Wdh</span>}
-                  {curExData.trackWeight!==false&&<span style={{fontSize:11,color:"#A78BFA",fontWeight:700,background:"#A78BFA25",padding:"2px 8px",borderRadius:6}}>{curExData.weight||0} kg</span>}
-                  {curExData.trackKcal===true&&<span style={{fontSize:11,color:"#FF6B6B",fontWeight:700,background:"#FF6B6B25",padding:"2px 8px",borderRadius:6}}>{curExData.kcal||0} kcal</span>}
-                  {curExData.trackKm===true&&<span style={{fontSize:11,color:"#4CC9F0",fontWeight:700,background:"#4CC9F025",padding:"2px 8px",borderRadius:6}}>{curExData.km||0} km</span>}
-                  {curExData.trackIncline===true&&<span style={{fontSize:11,color:"#FFD166",fontWeight:700,background:"#FFD16625",padding:"2px 8px",borderRadius:6}}>{curExData.incline||0}%</span>}
-                  {curExData.trackTempo===true&&<span style={{fontSize:11,color:"#EF476F",fontWeight:700,background:"#EF476F25",padding:"2px 8px",borderRadius:6}}>{curExData.tempo||"T"}</span>}
-                </div>
-              </div>
-              <button style={{background:"#FF6B35",border:"none",borderRadius:"50%",width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(255,107,53,0.4)",flexShrink:0}} onClick={()=>setShowInfo(true)}>
-                <span style={{fontSize:20,fontWeight:800,fontFamily:"'Syne',sans-serif"}}>i</span>
-              </button>
-            </div>
+        {curExData && <>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"#fff",marginBottom:12}}>{curExData.name}</div>
+          <div style={{width:"100%",height:160,borderRadius:16,overflow:"hidden",marginBottom:16,background:"#0D0D0F",border:"1px solid #1E1E24",position:"relative"}}>
+            {curExData.photo?<img src={curExData.photo} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#333"}}>{IC.dumbbell}</div>}
+            <button style={{position:"absolute",bottom:10,right:10,background:"#FF6B35",borderRadius:"50%",width:32,height:32,border:"none",color:"#fff"}} onClick={()=>setShowInfo(true)}>i</button>
           </div>
-
 
           {showInfo&&<div style={s.overlay2} onClick={()=>setShowInfo(false)}>
             <div style={{...s.modal,maxWidth:400}} onClick={e=>e.stopPropagation()}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-                <h3 style={s.modalTitle}>{curExData.name}</h3>
-                <button onClick={()=>setShowInfo(false)} style={s.iconBtnS}>{IC.x}</button>
-              </div>
-              <div style={{maxHeight:300,overflowY:"auto",paddingRight:5}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Beschreibung / Anleitung</div>
-                <div style={{fontSize:14,color:"#aaa",lineHeight:1.6,whiteSpace:"pre-wrap"}}>
-                  {/* Try to find description from library if available, else use what's in the plan */}
-                  {library.find(l=>l.id===curExData.libId||l.name===curExData.name)?.description || "Keine Beschreibung verfügbar."}
-                </div>
-              </div>
-              <button style={{...s.primaryBtn,width:"100%",marginTop:20}} onClick={()=>setShowInfo(false)}>Schließen</button>
+              <h3 style={s.modalTitle}>{curExData.name}</h3>
+              <div style={{fontSize:14,color:"#aaa",lineHeight:1.6,margin:"15px 0"}}>{curExData.description || "Keine Anleitung."}</div>
+              <button style={s.primaryBtn} onClick={()=>setShowInfo(false)}>Schließen</button>
             </div>
           </div>}
 
-          <div style={{marginBottom: 20}}>
-            {/* Header - simplified as we now have inline labels for better mobile alignment */}
-            <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 10px 10px", borderBottom: "1px solid #1E1E24", marginBottom: 15}}>
-              <span style={{fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase", width: 70}}>
-                Satz <span style={{color: "#fff", marginLeft: 2}}>
-                  {curSets.length === 1 ? "1 von 1" : `${curSets.filter(s=>s.done).length} / ${curSets.length}`}
-                </span>
-              </span>
-              <span style={{fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase", textAlign: "center", letterSpacing: "0.5px", flex: 1}}>
-                {repeatRounds ? `Durchgang ${curRound} von ${parseInt(totalRounds)||1}` : "Übungs-Daten"}
-              </span>
-              <span style={{fontSize: 11, fontWeight: 800, color: "#fff", textTransform: "uppercase", width: 70, textAlign: "right"}}>
-                Übung {curEx + 1}/{exercises.length}
-              </span>
-            </div>
+          <div style={{marginBottom:15,borderBottom:"1px solid #1E1E24",paddingBottom:10,display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:800,color:"#888"}}>
+            <span>Satz {curSets.filter(s=>s.done).length+1} / {curSets.length}</span>
+            <span>{repeatRounds ? `Durchgang ${curRound}` : ""}</span>
+            <span>Übung {curEx+1}/{exercises.length}</span>
+          </div>
 
-            {curSets.map((set, siRel) => {
-              const siGlobal = repeatRounds ? (curRound - 1) * (parseInt(totalSets) || 1) + siRel : siRel;
-              const rowStyle = set.done ? {opacity: 0.5, filter: "grayscale(0.5)"} : {};
-              const inpStyle = set.done ? {textDecoration: "line-through", pointerEvents: "none"} : {};
-              
-              const metrics = [
-                { id: 'reps', label: 'WDH', val: set.reps, track: curExData.trackReps!==false, color: '#FF6B35', placeholder: curExData.reps||"0", type: "number" },
-                { id: 'weight', label: 'KG', val: set.weight, track: curExData.trackWeight!==false, color: '#A78BFA', placeholder: curExData.weight||"0", type: "number" },
-                { id: 'km', label: 'KM', val: set.km, track: curExData.trackKm===true, color: '#4CC9F0', placeholder: curExData.km||"km", type: "number" },
-                { id: 'incline', label: '%', val: set.incline, track: curExData.trackIncline===true, color: '#FFD166', placeholder: curExData.incline||"%", type: "text" },
-                { id: 'tempo', label: 'T', val: set.tempo, track: curExData.trackTempo===true, color: '#EF476F', placeholder: curExData.tempo||"T", type: "text" },
-                { id: 'kcal', label: 'KCAL', val: set.kcal, track: curExData.trackKcal===true, color: '#FF6B6B', placeholder: curExData.kcal||"kcal", type: "number" }
-              ].filter(m => m.track);
-
-              return(
-                <div key={siGlobal} style={{...rowStyle, display: "grid", gridTemplateColumns: isMobile ? "30px 1fr 34px" : "34px 1fr 40px", gap: isMobile ? 10 : 16, alignItems: "center", marginBottom: 12, background: "#0D0D0F", padding: isMobile ? "12px 10px" : "16px 14px", borderRadius: 18, border: `1px solid ${set.done ? "#06D6A033" : "#1E1E24"}`}}>
-                  
-                  {/* Set Number */}
-                  <div style={{...s.setN, width: isMobile ? 28 : 34, height: isMobile ? 28 : 34, fontSize: isMobile ? 11 : 13, background: set.done ? "#06D6A0" : "#1F1F24", color: set.done ? "#000" : "#666"}}>{siGlobal + 1}</div>
-                  
-                  {/* Inputs Grid */}
-                  <div style={{display: "grid", gridTemplateColumns: metrics.length > 2 && isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 8 : 12}}>
-                    {metrics.map(m => (
-                      <div key={m.id}>
-                        <div style={{fontSize: 9, fontWeight: 900, color: m.color, marginBottom: 6, textTransform: "uppercase", paddingLeft: 6, letterSpacing: 0.5}}>{m.label}</div>
-                        <input 
-                          style={{...s.setInp, ...inpStyle, width: "100%", color: m.color, borderColor: (set.preset && !set.done) ? m.color + "55" : "#2A2A30", background: "#111114", borderRadius: 10, padding: "12px"}} 
-                          type={m.type} 
-                          value={m.val || ""} 
-                          onChange={e => updSet(curEx, siGlobal, m.id, e.target.value)} 
-                          placeholder={m.placeholder} 
-                          disabled={set.done}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Actions - Hide hook if it's a single set exercise */}
-                  <div style={{display: "flex", flexDirection: "column", gap: 6, alignItems: "center"}}>
-                    {curSets.length > 1 && (
-                      <button style={{background: set.done ? "#06D6A0" : "transparent", border: `2px solid ${set.done ? "#06D6A0" : "#2A2A30"}`, color: set.done ? "#000" : "#06D6A0", borderRadius: 12, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer"}} onClick={()=>toggleSetDone(curEx, siGlobal)}>
-                        {IC.check}
-                      </button>
-                    )}
-                    {!set.done && !set.preset && <button style={{background:"transparent",border:"none",color:"#EF476F88",fontSize:22,cursor:"pointer"}} onClick={()=>delSet(curEx, siGlobal)}>×</button>}
-                  </div>
+          {curSets.map((set, siRel) => {
+            const siGlobal = repeatRounds ? (curRound-1)*(parseInt(totalSets)||1)+siRel : siRel;
+            return (
+              <div key={siGlobal} style={{display:"grid", gridTemplateColumns: "34px 1fr 1fr 40px", gap:10, alignItems:"center", marginBottom:12, background: set.done?"#06D6A010":"#0D0D0F", padding:12, borderRadius:14, border:`1px solid ${set.done?"#06D6A033":"#1E1E24"}`}}>
+                <div style={{...s.setN, background:set.done?"#06D6A0":"#1F1F24", color:set.done?"#000":"#666"}}>{siGlobal+1}</div>
+                <div><input style={{...s.setInp, width:"100%", color:"#FF6B35"}} type="number" value={set.reps} onChange={e=>updSet(curEx, siGlobal, 'reps', e.target.value)} placeholder="0"/></div>
+                <div><input style={{...s.setInp, width:"100%", color:"#A78BFA"}} type="number" value={set.weight} onChange={e=>updSet(curEx, siGlobal, 'weight', e.target.value)} placeholder="0"/></div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  <button style={{background:set.done?"#06D6A0":"transparent", border:`2px solid ${set.done?"#06D6A0":"#2A2A30"}`, color:set.done?"#000":"#06D6A0", borderRadius:8, height:34}} onClick={()=>toggleSetDone(curEx, siGlobal)}>{IC.check}</button>
+                  {curExData.hiitTimer?.enabled && !set.done && <button style={{background:"#FF6B3515", border:"1px solid #FF6B35", color:"#FF6B35", borderRadius:8, height:34}} onClick={()=>setHiitConfig({duration: curExData.hiitTimer.duration, onFinish: ()=>toggleSetDone(curEx, siGlobal)})}>{IC.timer}</button>}
                 </div>
-              );
-            })}
-            {curExData.trackSets!==false && <button style={{...s.addSetBtn, width: "100%", padding: "10px", background: "#1A1A1F", borderRadius: 10, border: "1px dashed #2A2A30", color: "#888", fontWeight: 700}} onClick={()=>addSet(curEx)}>+ Satz hinzufügen</button>}
-          </div>
-
-          <div style={{display:"flex",gap:10,marginTop:14,alignItems:"stretch"}}>
-            {curEx>0&&<button style={{...s.secBtn, padding: "0 15px"}} onClick={()=>setCurEx(i=>i-1)}>←</button>}
-            
-            {curSets.length === 1 && !curSets[0].done ? (
-              <div style={{flex: 1, display: "flex", gap: 10, alignItems: "stretch"}}>
-                <button style={{...s.primaryBtn, flex: 2, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0", fontSize: 13, padding: "10px", fontWeight: 800, display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>{ 
-                  toggleSetDone(curEx, repeatRounds ? (curRound - 1) * (parseInt(totalSets) || 1) : 0);
-                }}>
-                  Satz fertig {IC.check}
-                </button>
-                <button style={{...s.primaryBtn, flex: 1, background: "#FF6B3515", border: "2px solid #FF6B35", color: "#FF6B35", fontSize: 13, padding: "10px", display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={goNext}>
-                  <span style={{whiteSpace: "nowrap"}}>Überspringen</span> {IC.chevRight}
-                </button>
               </div>
-            ) : (function(){
-              const rTot = parseInt(totalRounds) || 1;
-              const isDone = (curEx===exercises.length-1 && (!repeatRounds || curRound === rTot));
-              const clr = isDone ? "#06D6A0" : "#FF6B35";
-              return (
-              <button style={{...s.primaryBtn,flex:1,padding:"10px",fontSize:13,background:`${clr}15`,border:`2px solid ${clr}`,color:clr,fontWeight:800}} onClick={goNext}>
-                {curEx<exercises.length-1 ? "Nächste Übung →" : (repeatRounds && curRound < rTot) ? `Durchgang ${curRound+1} starten 🔄` : "✓ Fertig"}
-              </button>
-              );
-            })()}
+            );
+          })}
+          
+          <div style={{display:"flex",gap:10,marginTop:20}}>
+            {curEx>0&&<button style={{...s.secBtn,flex:1}} onClick={()=>setCurEx(i=>i-1)}>← Zurück</button>}
+            <button style={{...s.primaryBtn,flex:2,background:"#06D6A015",border:"2px solid #06D6A0",color:"#06D6A0"}} onClick={goNext}>
+              {curEx<exercises.length-1 ? "Nächste Übung →" : "Training abschließen ✓"}
+            </button>
           </div>
-                                        
-          <button style={{width:"100%",marginTop:10,background:"#EF476F15",border:"2px solid #EF476F",borderRadius:10,padding:"10px",color:"#EF476F",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8}} onClick={()=>setShowEndModal(true)}>
-            ⏹ Training beenden
-          </button>
-        </div>}
+          <button style={{width:"100%",marginTop:15,background:"#EF476F15",border:"2px solid #EF476F",borderRadius:10,padding:12,color:"#EF476F"}} onClick={()=>setShowEndModal(true)}>⏹ Abbrechen</button>
+        </>}
+
+        {hiitConfig && (
+          <div style={s.overlay2} onClick={()=>setHiitConfig(null)}>
+            <div style={{...s.modal, maxWidth:360, padding:25, textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+              <h3 style={s.modalTitle}>HIIT Timer</h3>
+              <HiitTimer duration={hiitConfig.duration} onFinish={()=>{hiitConfig.onFinish(); setHiitConfig(null);}} isMobile={isMobile}/>
+              <button style={{...s.secBtn, marginTop:20, width:"100%"}} onClick={()=>setHiitConfig(null)}>Abbrechen</button>
+            </div>
+          </div>
+        )}
 
         {showEndModal && (
           <div style={s.overlay2} onClick={()=>setShowEndModal(false)}>
-            <div style={{...s.modal, maxWidth: 380, padding: 25, borderRadius: 24, textAlign: "center"}} onClick={e=>e.stopPropagation()}>
-              <div style={{width: 64, height: 64, background: "#EF476F20", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", color: "#EF476F"}}>
-                <span style={{fontSize: 28}}>⏹</span>
-              </div>
-              
+            <div style={{...s.modal, maxWidth:380, padding:25, borderRadius: 24, textAlign: "center"}} onClick={e=>e.stopPropagation()}>
+              <div style={{width: 64, height: 64, background: "#EF476F20", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", color: "#EF476F"}}><span style={{fontSize: 28}}>⏹</span></div>
               <h3 style={{...s.modalTitle, fontSize: 22, marginBottom: 10}}>Training beenden?</h3>
-              <p style={{fontSize: 14, color: "#888", marginBottom: 25, lineHeight: 1.5}}>
-                Möchtest du das aktuelle Training abbrechen oder vorzeitig mit den bisherigen Fortschritten speichern?
-              </p>
-
+              <p style={{fontSize: 14, color: "#888", marginBottom: 25, lineHeight: 1.5}}>Möchtest du das aktuelle Training abbrechen oder vorzeitig mit den bisherigen Fortschritten speichern?</p>
               <div style={{display: "flex", flexDirection: "column", gap: 10}}>
-                <button 
-                  style={{...s.primaryBtn, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} 
-                  onClick={()=>{
-                    const now = new Date();
-                    const eTime = now.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
-                    setEndTime(eTime);
-                    setShowEndModal(false);
-                    
-                    // Trigger manual save logic
-                    setTimeout(() => {
-                      const pl = data.plans.find(p=>p.id===parseInt(planId));
-                      const parsed = exercises.map((ex,ei)=>{
-                        const sArr = sets[ei] || [];
-                        const valid = sArr.filter(s => s.done && (parseInt(s.reps) > 0 || parseFloat(s.kcal) > 0 || parseFloat(s.km) > 0));
-                        return {
-                          name: ex.name,
-                          sets: valid.map(s => ({
-                            reps: parseInt(s.reps) || 0,
-                            weight: parseFloat(s.weight) || 0,
-                            kcal: parseFloat(s.kcal) || 0,
-                            km: parseFloat(s.km) || 0,
-                            incline: s.incline || "",
-                            tempo: s.tempo || ""
-                          }))
-                        };
-                      }).filter(ex => ex.sets.length > 0);
-
-                      if(parsed.length === 0) return notify("Keine Sätze zum Speichern gefunden!", "error");
-
-                      parsed.forEach(ex=>{
-                        const best=ex.sets.reduce((b,s)=>s.weight*s.reps>b.weight*b.reps?s:b,{reps:0,weight:0});
-                        if(best.weight>0) onSavePR(ex.name,best.weight,best.reps);
-                      });
-
-                      setData(d=>({...d,workouts:[{
-                        id:Date.now(),
-                        planId:parseInt(planId),
-                        name:pl?.name||"Training",
-                        date,
-                        duration:Math.round(timer/60),
-                        note:"",
-                        photo:null,
-                        exercises:parsed,
-                        startTime,
-                        endTime: eTime
-                      },...(d.workouts||[])]}));
-
-                      setStep(3);
-                      setRunning(false);
-                      setActiveWorkout(null);
-                      notify("Training gespeichert! 🎉");
-                    }, 0);
-                  }}
-                >
-                  ✓ Vorzeitig beenden & Speichern
-                </button>
-                
-                <button 
-                  style={{...s.primaryBtn, background: "#EF476F15", border: "2px solid #EF476F", color: "#EF476F", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} 
-                  onClick={()=>{
-                    setStep(1);
-                    setRunning(false);
-                    setActiveWorkout(null);
-                    setShowEndModal(false);
-                    notify("Training abgebrochen.", "info");
-                  }}
-                >
-                  🗑 Abbrechen & Löschen
-                </button>
-
-                <button 
-                  style={{...s.secBtn, background: "#F0EDE810", border: "2px solid #F0EDE855", color: "#F0EDE8", fontSize: 13, marginTop: 5, padding: "10px", borderRadius: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6}} 
-                  onClick={()=>setShowEndModal(false)}
-                >
-                  ← Zurück zum Training
-                </button>
+                <button style={{...s.primaryBtn, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} onClick={save}>✓ Speichern & Beenden</button>
+                <button style={{...s.primaryBtn, background: "#EF476F15", border: "2px solid #EF476F", color: "#EF476F", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} onClick={()=>{setStep(1); setTimer(0); setRunning(false); setShowEndModal(false); setActiveWorkout(null); notify("Training verworfen", "info");}}>🗑 Abbrechen & Löschen</button>
+                <button style={{...s.secBtn, background: "#F0EDE810", border: "2px solid #F0EDE855", color: "#F0EDE8", fontSize: 13, marginTop: 5, padding: "10px", borderRadius: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6}} onClick={()=>setShowEndModal(false)}>← Zurück zum Training</button>
               </div>
             </div>
           </div>
         )}
       </div>}
 
-      {/* STEP 3 - Zusammenfassung */}
-      {step===3&&<div className="fadeIn">
-        <div style={{background:"#0D0D0F",borderRadius:14,padding:20,marginBottom:20}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(80px, 1fr))",gap:16,marginBottom:16,paddingBottom:16,borderBottom:"1px solid #1E1E24"}}>
-            <div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:"#FF6B35"}}>{fmtTimer(timer)}</div><div style={{fontSize:11,color:"#888"}}>Dauer</div></div>
-            <div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:"#00D9C0"}}>{exercises.length}</div><div style={{fontSize:11,color:"#888"}}>Übungen</div></div>
-            {(() => {
-               let totalKcal = 0, totalKm = 0;
-               exercises.forEach((_,ei) => {
-                 (sets[ei]||[]).filter(s=>s.done).forEach(s=>{
-                   totalKcal += parseFloat(s.kcal)||0;
-                   totalKm += parseFloat(s.km)||0;
-                 });
-               });
-               return <>
-                 {totalKcal > 0 && <div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:"#FF6B6B"}}>{totalKcal}</div><div style={{fontSize:11,color:"#888"}}>kcal</div></div>}
-                 {totalKm > 0 && <div style={{textAlign:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:"#4CC9F0"}}>{totalKm.toFixed(1)}</div><div style={{fontSize:11,color:"#888"}}>km</div></div>}
-               </>;
-            })()}
-          </div>
-
-          <div style={{maxHeight:400,overflowY:"auto"}}>
-            {exercises.map((ex,i)=>{
-              const sArr=sets[i]||[];
-              const validSets=sArr.filter(s=>s.done && (parseInt(s.reps)>0 || parseFloat(s.kcal)>0 || parseFloat(s.km)>0));
-              const exVol=validSets.reduce((a,s) => a + (parseInt(s.reps)||0)*(parseFloat(s.weight)||0),0);
-              const eKcal = validSets.reduce((a,s)=>a+(parseFloat(s.kcal)||0),0);
-              const eKm = validSets.reduce((a,s)=>a+(parseFloat(s.km)||0),0);
-              if(validSets.length===0) return null;
-              
-              return(<div key={i} style={{padding:"20px 0",borderBottom:i<exercises.length-1?"1px solid #1A1A1F":"none"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-                  <div style={{fontWeight:800,fontSize:17,color:"#F0EDE8"}}>{ex.name}</div>
-                  <div style={{display:"flex",gap:8}}>
-                    {exVol > 0 && <div style={{fontSize:11,fontWeight:800,color:"#A78BFA",background:"#A78BFA15",padding:"4px 10px",borderRadius:8}}>{exVol}kg</div>}
-                    {eKcal > 0 && <div style={{fontSize:11,fontWeight:800,color:"#FF6B6B",background:"#FF6B6B15",padding:"4px 10px",borderRadius:8}}>{eKcal}kcal</div>}
-                    {eKm > 0 && <div style={{fontSize:11,fontWeight:800,color:"#4CC9F0",background:"#4CC9F015",padding:"4px 10px",borderRadius:8}}>{eKm.toFixed(1)}km</div>}
-                  </div>
-
-                </div>
-
-
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {repeatRounds ? (
-                    Array.from({length: totalRounds}).map((_, rIdx) => {
-                      const rSets = sArr.slice(rIdx * totalSets, (rIdx + 1) * totalSets).filter(s => s.done && (parseInt(s.reps) > 0 || parseFloat(s.kcal) > 0 || parseFloat(s.km) > 0));
-                      if (rSets.length === 0) return null;
-                      return (
-                        <div key={rIdx} style={{display:"flex",alignItems:"center",gap:12,background:"#0D0D0F",padding:"8px 12px",borderRadius:10,border:"1px solid #1A1A1F",marginBottom:4}}>
-                          <div style={{fontSize:10,fontWeight:800,color:"#666",textTransform:"uppercase",width:80}}>Durchg. {rIdx + 1}</div>
-                          <div style={{flex:1,display:"flex",gap:10,flexWrap:"wrap"}}>
-                            {rSets.map((s, si) => (
-                              <div key={si} style={{display:"flex",gap:4,fontSize:13,alignItems:"baseline"}}>
-                                {ex.trackReps!==false&&<><span style={{color:"#FF6B35",fontWeight:700}}>{s.reps}</span><span style={{color:"#444",fontSize:9}}>Wdh</span></>}
-                                {ex.trackWeight!==false&&<span style={{color:"#A78BFA",fontWeight:700,marginLeft:2}}>{s.weight}kg</span>}
-                                {ex.trackKcal===true&&<span style={{color:"#FF6B6B",fontWeight:700,marginLeft:2}}>{s.kcal}kcal</span>}
-                                {ex.trackKm===true&&<span style={{color:"#4CC9F0",fontWeight:700,marginLeft:2}}>{s.km}km</span>}
-                                {ex.trackIncline===true&&<span style={{color:"#FFD166",fontWeight:700,marginLeft:2}}>{s.incline}%</span>}
-                                {ex.trackTempo===true&&<span style={{color:"#EF476F",fontWeight:700,marginLeft:2}}>{s.tempo}</span>}
-
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                      {validSets.map((s, si) => (
-                        <div key={si} style={{background:"#1A1A1F",padding:"8px 12px",borderRadius:10,display:"flex",gap:8,fontSize:13,border:"1px solid #2A2A30",alignItems:"baseline"}}>
-                          {ex.trackSets!==false&&<span style={{color:"#666",fontSize:10,fontWeight:800}}>{si + 1}</span>}
-                          {ex.trackReps!==false&&<div style={{display:"flex",gap:3}}><span style={{color:"#FF6B35",fontWeight:700}}>{s.reps}</span><span style={{color:"#444",fontSize:9}}>Wdh</span></div>}
-                          {ex.trackWeight!==false&&<span style={{color:"#A78BFA",fontWeight:700}}>{s.weight}kg</span>}
-                          {ex.trackKcal===true&&<span style={{color:"#FF6B6B",fontWeight:700}}>{s.kcal}kcal</span>}
-                          {ex.trackKm===true&&<span style={{color:"#4CC9F0",fontWeight:700}}>{s.km}km</span>}
-                          {ex.trackIncline===true&&<span style={{color:"#FFD166",fontWeight:700}}>{s.incline}%</span>}
-                          {ex.trackTempo===true&&<span style={{color:"#EF476F",fontWeight:700}}>{s.tempo}</span>}
-
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>);
-            })}
-          </div>
+      {step===3 && <div className="fadeIn">
+        <div style={{background:"#0D0D0F",borderRadius:14,padding:20,textAlign:"center",marginBottom:20}}>
+          <div style={{fontSize:32,fontWeight:800,color:"#06D6A0",marginBottom:10}}>Geschafft! 🎉</div>
+          <div style={{fontSize:14,color:"#888"}}>Dauer: {fmtTimer(timer)} | Übungen: {exercises.length}</div>
         </div>
-        <div style={{display:"flex",gap:12}}>
-          <button style={s.secBtn} onClick={()=>{setStep(2);setRunning(true);}}>← Zurück</button>
-          <button style={{...s.primaryBtn,flex:1}} onClick={save}>💾 Training speichern</button>
-        </div>
+        <button style={s.primaryBtn} onClick={save}>💾 Training speichern</button>
       </div>}
     </div>
-  </div>);}
+  </div>);
+}
 
 function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isMobile}){
   const sorted=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -3633,6 +3307,24 @@ function LibraryCard({ex, setDetailEx, setEditEx, setShowForm, delEx, setEquipMo
             style={{
               width: 32, height: 32,
               display: "flex", alignItems: "center", justifyContent: "center",
+              color: ex.hiitTimer?.enabled ? "#FF6B35" : "#666",
+              filter: ex.hiitTimer?.enabled ? "drop-shadow(0 0 6px rgba(255,107,53,0.5))" : "none",
+              background: ex.hiitTimer?.enabled ? "rgba(255,107,53,0.12)" : "rgba(255,255,255,0.03)",
+              border: ex.hiitTimer?.enabled ? "1px solid rgba(255,107,53,0.3)" : "1px solid rgba(255,255,255,0.05)",
+              borderRadius: 8,
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }} 
+            className="iconBtn" 
+            onClick={e=>{e.stopPropagation();setEditEx(ex);setShowForm(true);}}
+            title="HIIT Timer konfigurieren"
+          >
+            {IC.timer}
+          </button>
+          <button 
+            style={{
+              width: 32, height: 32,
+              display: "flex", alignItems: "center", justifyContent: "center",
               color: "#666",
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(255,255,255,0.05)",
@@ -3689,6 +3381,8 @@ function ExerciseFormModal({exercise,onSave,onClose}){
   const [muscles,setMuscles]=useState(exercise?.muscles||[]);
   const [types,setTypes]=useState(exercise?.types||[]);
   const [equipment,setEquipment]=useState(exercise?.equipment||[]);
+  const [hiitEnabled, setHiitEnabled] = useState(exercise?.hiitTimer?.enabled || false);
+  const [hiitDuration, setHiitDuration] = useState(exercise?.hiitTimer?.duration || 30);
   const [thumbnail,setThumbnail]=useState(exercise?.thumbnail||null);
   const [uploading,setUploading]=useState(false);
   const fileRef=useRef();
@@ -3730,7 +3424,7 @@ function ExerciseFormModal({exercise,onSave,onClose}){
 
   const save=()=>{
     if(!name.trim())return;
-    onSave({name:name.trim(),description:desc,sets,reps,weight,kcal,km,incline,tempo,trackSets,trackReps,trackWeight,trackKcal,trackKm,trackIncline,trackTempo,muscles,types,equipment,thumbnail});
+    onSave({name:name.trim(),description:desc,sets,reps,weight,kcal,km,incline,tempo,trackSets,trackReps,trackWeight,trackKcal,trackKm,trackIncline,trackTempo,muscles,types,equipment,thumbnail, hiitTimer: { enabled: hiitEnabled, duration: parseInt(hiitDuration) || 30 }});
   };
 
 
@@ -3773,6 +3467,33 @@ function ExerciseFormModal({exercise,onSave,onClose}){
           <div style={{...s.fg,opacity:trackKm?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#4CC9F0"}}>km</label><input style={{...s.inp,padding:"8px"}} type="number" value={km} onChange={e=>setKm(e.target.value)} placeholder="0" disabled={!trackKm}/></div>
           <div style={{...s.fg,opacity:trackIncline?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#FFD166"}}>Steig.</label><input style={{...s.inp,padding:"8px"}} type="text" value={incline} onChange={e=>setIncline(e.target.value)} placeholder="%" disabled={!trackIncline}/></div>
           <div style={{...s.fg,opacity:trackTempo?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#EF476F"}}>Tempo</label><input style={{...s.inp,padding:"8px"}} type="text" value={tempo} onChange={e=>setTempo(e.target.value)} placeholder="T" disabled={!trackTempo}/></div>
+        </div>
+
+        {/* HIIT Timer Config */}
+        <div style={{background:"#0D0D0F", border:"1px solid #1E1E24", borderRadius:12, padding:"12px 16px", marginBottom:18}}>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: hiitEnabled ? 12 : 0}}>
+            <div style={{display:"flex", alignItems:"center", gap:10}}>
+              <div style={{color: hiitEnabled ? "#FF6B35" : "#444", filter: hiitEnabled ? "drop-shadow(0 0 5px rgba(255,107,53,0.4))" : "none"}}>{IC.timer}</div>
+              <div>
+                <div style={{fontWeight:700, fontSize:13, color: hiitEnabled ? "#F0EDE8" : "#888"}}>HIIT Timer</div>
+                <div style={{fontSize:10, color:"#555"}}>Automatischer Countdown für Sätze</div>
+              </div>
+            </div>
+            <div style={{...s.toggle, ...(hiitEnabled?s.toggleOn:{})}} onClick={()=>setHiitEnabled(!hiitEnabled)}>
+              <div style={{...s.thumb, ...(hiitEnabled?s.thumbOn:{})}}/>
+            </div>
+          </div>
+          {hiitEnabled && (
+            <div style={{display:"flex", alignItems:"center", gap:12, paddingTop:10, borderTop:"1px solid #1A1A1F"}} className="fadeIn">
+              <label style={{fontSize:11, fontWeight:700, color:"#666"}}>Dauer (Sekunden):</label>
+              <input 
+                type="number" 
+                style={{...s.inp, width:70, padding:"6px 10px", textAlign:"center", fontSize:13, fontWeight:800, color:"#FF6B35"}} 
+                value={hiitDuration} 
+                onChange={e=>setHiitDuration(e.target.value)}
+              />
+            </div>
+          )}
         </div>
 
 
@@ -4833,7 +4554,17 @@ function AuthScreen(){
       await waitForFirebase();
       if(mode==="register"){
         const cred = await window.firebaseCreateUser(window.firebaseAuth, email, password);
+        const [firstName, ...rest] = name.split(" ");
+        const lastName = rest.join(" ");
+        const initialUserData = { ...defaultUser, firstName, lastName, email };
+        
         if(window.firebaseUpdateProfile) await window.firebaseUpdateProfile(cred.user, {displayName:name});
+        
+        // Explicitly set initial user data in Firestore for the new user
+        const uid = cred.user.uid;
+        await window.firebaseSetDoc(window.firebaseDoc(window.firebaseDb, "fitforge", `${uid}_user`), { value: initialUserData });
+        // Also set into localStorage so it displays correctly immediately
+        localStorage.setItem(`ff_${uid}_user`, JSON.stringify(initialUserData));
       } else {
         await window.firebaseSignIn(window.firebaseAuth, email, password);
       }
