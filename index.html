@@ -1913,14 +1913,18 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
 
       {step===1&&<div className="fadeIn">
         <h3 style={s.logTitle}>Plan & Datum</h3>
-        <div style={{display:"grid", gridTemplateColumns: "1fr 1fr", gap:14, marginBottom:20, alignItems: "flex-end"}}>
-          <div style={{...s.fg, marginBottom:0}}><label style={s.lbl}>Trainingsplan</label>
+        <div style={{display:"flex", gap:14, marginBottom:20, alignItems: "flex-end"}}>
+          <div style={{flex: 1, minWidth: 0}}>
+            <label style={s.lbl}>Trainingsplan</label>
             <select className="customSelect" style={{...s.inp, display: "block", height: 44, width: "100%", borderColor: plan?.color || "#2A2A30", color: plan?.color || "#F0EDE8", background: plan ? `${plan.color}15` : "#0D0D0F"}} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
               <option value="">Kein Plan</option>
               {data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-          <div style={{...s.fg, marginBottom:0}}><label style={s.lbl}>Datum</label><input style={{...s.inp, display: "block", height: 44, width: "100%"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+          <div style={{flex: 1, minWidth: 0}}>
+            <label style={s.lbl}>Datum</label>
+            <input style={{...s.inp, display: "block", height: 44, width: "100%", minWidth: 0}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+          </div>
         </div>
 
         <div style={{display:"flex", gap:10, marginBottom:20}}>
