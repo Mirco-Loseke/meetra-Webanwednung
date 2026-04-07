@@ -11,7 +11,10 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+
   try {
     const firebaseConfig = {
       apiKey: "AIzaSyBHcrBR0fWYVDkdWWAoVfvMEaN0CeoB52M",
@@ -128,9 +131,9 @@ input[type=color]::-webkit-color-swatch{border:none;border-radius:7px;}
     box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
   }
 </style>
-<div id="fb-debug-container">
+<div id="fb-debug-container" class="collapsed">
   <button id="fb-debug-toggle" onclick="toggleDebug()">
-    <span id="debug-arrow">▼</span> DEBUG CONSOLE
+    <span id="debug-arrow">▲</span> DEBUG CONSOLE
   </button>
   <div id="fb-debug"></div>
 </div>
@@ -306,6 +309,7 @@ const IC={
   progress:<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
   alert:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   ruler:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 13V5a2 2 0 012-2h14a2 2 0 012 2v8M3 13h18M3 13v6a2 2 0 002 2h14a2 2 0 002-2v-6M7 13v-3M11 13v-3M15 13v-3M19 13v-3"/></svg>,
+  arrowLeft:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5m7 7l-7-7 7-7"/></svg>,
   timer:<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M12 2v3M20 7l-2 2M4 7l2 2"/></svg>
 };
 
@@ -329,6 +333,36 @@ const playBeep = (freq, duration, vol=0.1) => {
     osc.stop(audioCtx.currentTime + duration);
   } catch(e) { console.warn("Beep failed", e); }
 };
+
+const speak = (text, vol = 1.0) => {
+  if (!window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'de-DE';
+    utterance.volume = vol;
+    utterance.rate = 1.0;
+    window.speechSynthesis.speak(utterance);
+  } catch(e) { console.warn("Speech failed", e); }
+};
+
+// Background Timer Worker
+const timerWorkerCode = `
+  let timerId = null;
+  self.onmessage = function(e) {
+    if (e.data === 'start') {
+      if (timerId) clearInterval(timerId);
+      timerId = setInterval(() => {
+        self.postMessage('tick');
+      }, 1000);
+    } else if (e.data === 'stop') {
+      if (timerId) clearInterval(timerId);
+      timerId = null;
+    }
+  };
+`;
+const timerWorkerBlob = new Blob([timerWorkerCode], { type: 'application/javascript' });
+const timerWorkerUrl = URL.createObjectURL(timerWorkerBlob);
 
 function HiitTimer({duration, onFinish, isMobile, controlledTime, controlledActive}){
   const [internalTime, setInternalTime] = useState(duration);
@@ -373,10 +407,10 @@ function HiitTimer({duration, onFinish, isMobile, controlledTime, controlledActi
   };
 
   return (
-    <div className="hiit-glow" style={{background:"#111114", border:"2px solid #FFD166", borderRadius:24, padding: isMobile ? 16 : 24, display:"flex", flexDirection:"column", gap: 14, width:"100%", textAlign:"center", marginBottom: 12}}>
+    <div className="hiit-glow" style={{background:"#111114", border:"2px solid #FFD166", borderRadius:24, padding: isMobile ? 16 : 24, display:"flex", flexDirection:"column", gap: isMobile ? 4 : 14, width:"100%", textAlign:"center", marginBottom: 12}}>
       <div style={{fontSize: 9, fontWeight: 900, color: "#FFD166", textTransform:"uppercase", letterSpacing: 2, opacity: 0.7}}>HIIT Interval</div>
-      <div style={{display:"flex", justifyContent:"center", alignItems:"baseline", gap:6, margin: "4px 0"}}>
-        <div style={{fontFamily:"'Syne',sans-serif", fontSize: isMobile ? 54 : 64, fontWeight:800, color:"#FFD166", letterSpacing:-2, textShadow: "0 0 15px rgba(255, 209, 102, 0.3)"}}>
+      <div style={{display:"flex", justifyContent:"center", alignItems:"baseline", gap:6, margin: "0"}}>
+        <div style={{fontFamily:"'Syne',sans-serif", fontSize: isMobile ? 54 : 64, fontWeight:800, color:"#FFD166", letterSpacing:-2, textShadow: "0 0 15px rgba(255, 209, 102, 0.3)", minWidth: isMobile ? "1.5em" : "auto"}}>
           {timeLeft}
         </div>
         <div style={{fontSize:14, fontWeight:800, color:"#FFD166", opacity: 0.5}}>SEK</div>
@@ -812,9 +846,51 @@ function FitForge(){
   const activeEx = activeWorkout && activeWorkout.curEx !== undefined ? activeWorkout.exercises[activeWorkout.curEx] : null;
   const fmtTimer=t=>{const m=Math.floor(t/60),s=t%60;return`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;};
   const totalVol=data.workouts.reduce((a,w)=>a+(w.exercises||[]).reduce((b,e)=>b+(e.isHiit?0:(e.sets||[]).reduce((c,s)=>c+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0),0)),0),0);
-  const thisWeek=data.workouts.filter(w=>new Date(w.date)>=new Date(Date.now()-7*864e5));
-  const streak=Math.min(thisWeek.length,7);
-  const savePR=(exName,weight,reps)=>{const k=exName.toLowerCase().trim(),ex=prs[k],nv=weight*reps,ov=ex?(ex.weight*ex.reps):0;if(nv>ov){setPrs(p=>({...p,[k]:{name:exName,weight,reps,date:todayStr()}}));showToast(`🏆 Neuer PR: ${exName} – ${weight}kg × ${reps}!`);}};
+  const getCWStart = () => {
+    const d = new Date();
+    const day = d.getDay() || 7;
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (day - 1));
+    return d;
+  };
+  const cwStart = getCWStart();
+  const thisWeek = data.workouts.filter(w => new Date(w.date) >= cwStart);
+  const cwDays = new Set(thisWeek.map(w => new Date(w.date).toDateString())).size;
+  const cwSessions = thisWeek.length;
+  const streak = cwDays; // Unique days in current week
+  const savePR=(exName,weight,reps,km,kcal)=>{
+    const k=exName.toLowerCase().trim();
+    const ex=prs[k];
+    const today = todayStr();
+    
+    // Weight/Reps PR
+    if (weight && reps) {
+      const nv=weight*reps, ov=ex?(ex.weight*ex.reps):0;
+      if(nv>ov){
+        setPrs(p=>({...p,[k]:{...p[k], name:exName, weight, reps, date:today}}));
+        showToast(`🏆 Neuer PR: ${exName} – ${weight}kg × ${reps}!`);
+      }
+    }
+    
+    // Distance PR
+    if (km) {
+      const nkm = parseFloat(km), okm = ex?.km || 0;
+      if(nkm > okm) {
+        setPrs(p=>({...p,[k]:{...p[k], name:exName, km:nkm, date:today}}));
+        showToast(`🏆 Neuer Distanz-PR: ${exName} – ${nkm}km!`);
+      }
+    }
+
+    // Kcal PR
+    if (kcal) {
+      const nkc = parseFloat(kcal), okc = ex?.kcal || 0;
+      if(nkc > okc) {
+        setPrs(p=>({...p,[k]:{...p[k], name:exName, kcal:nkc, date:today}}));
+        showToast(`🏆 Neuer Kcal-PR: ${exName} – ${nkc}kcal!`);
+      }
+    }
+  };
+
   const getPR=n=>prs[n.toLowerCase().trim()];
   const today=todayStr();
   const todayNut = nutrition[today] || {calories:0,protein:0,carbs:0,fat:0,meals:[]};
@@ -843,7 +919,7 @@ function FitForge(){
           ))}
         </nav>
         <div style={{paddingTop:20, display:"flex", flexDirection:"column", gap:10}}>
-          <div style={s.streakCard}><span style={{color:"#fff",display:"flex"}}>{IC.fire}</span><div><div style={s.streakN}>{streak} Tage</div><div style={s.streakL}>Diese Woche</div></div></div>
+          <div style={s.streakCard}><span style={{color:"#FFD166",display:"flex"}}>{IC.fire}</span><div><div style={s.streakN}>{cwDays} {cwDays === 1 ? 'Tag' : 'Tage'}</div><div style={s.streakL}>{cwSessions} {cwSessions === 1 ? 'Einheit' : 'Einheiten'}</div></div></div>
           {lastSync && <div style={{fontSize:10, color:"#444", textAlign:"center", padding:"0 10px"}}>Cloud Sync: {lastSync.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>}
         </div>
       </aside>
@@ -964,7 +1040,9 @@ function FitForge(){
     </div>
   );
 }
-function Dashboard({data,user,onLog,onView,streak,totalVol,thisWeek,todayNut,isMobile}){
+function Dashboard({data,user,onLog,onView,totalVol,thisWeek,todayNut,isMobile}){
+  const cwDays = new Set(thisWeek.map(w => new Date(w.date).toDateString())).size;
+  const cwSessions = thisWeek.length;
   const last=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
   const today=new Date(),tn=FULL_WEEKDAYS[today.getDay()===0?6:today.getDay()-1];
   const todayPlan=data.plans.find(p=>p.days.includes(tn));
@@ -981,8 +1059,8 @@ function Dashboard({data,user,onLog,onView,streak,totalVol,thisWeek,todayNut,isM
         <button style={{...s.heroBtn, padding: isMobile ? "8px 16px" : s.heroBtn.padding, fontSize: isMobile ? 13 : 14}} onClick={onLog}>{IC.plus} Training starten</button>
       </div>
     </div>
-    <div style={{...s.statsRow, gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : s.statsRow.gridTemplateColumns}} className={isMobile ? "" : ""}>
-      {[[data.workouts.length,"Trainings",IC.dumbbell,"#FF6B35"],[thisWeek.length,"Diese Woche",IC.fire,"#FFD166"],[`${streak}🔥`,"Streak",IC.trophy,"#00D9C0"],[`${Math.round((totalVol||0)/1000)}k kg`,"Volumen",IC.bolt,"#A78BFA"]].map(([v,l,ic,c],i)=>(
+    <div style={{...s.statsRow, gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : s.statsRow.gridTemplateColumns}}>
+      {[[data.workouts.length,"Trainings",IC.dumbbell,"#FF6B35"],[cwDays,"Tage diese Woche",IC.fire,"#FFD166"],[`${cwSessions}`,"Einheiten",IC.trophy,"#00D9C0"],[`${Math.round((totalVol||0)/1000)}k kg`,"Volumen",IC.bolt,"#A78BFA"]].map(([v,l,ic,c],i)=>(
         <div key={i} style={{...s.statCard, padding: isMobile ? 12 : 16}} className="statCard">
           <div style={{color:c,display:"flex",marginBottom:8, transform: isMobile ? "scale(0.9)" : "none"}}>{ic}</div>
           <div style={{...s.statV, fontSize: isMobile ? 20 : 24}}>{v}</div>
@@ -1333,7 +1411,7 @@ function Stats({data,prs,nutrition,user}){
   const filtered=safeW.filter(w=>{try{return new Date(w.date)>=cutoff;}catch{return false;}}).sort((a,b)=>new Date(a.date)-new Date(b.date));
   
   const safeVol=w=>{try{return(w.exercises||[]).reduce((a,e)=>a+(e.sets||[]).reduce((b,s)=>b+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0),0),0);}catch{return 0;}};
-  const totalW=safeW.length,totalD=safeW.reduce((a,w)=>a+(isFinite(w.duration)?+w.duration:0),0),totalVK=Math.round(safeW.reduce((a,w)=>a+safeVol(w),0)/1000),avgD=totalW?Math.round(totalD/totalW):0;
+  const totalW=filtered.length,totalD=filtered.reduce((a,w)=>a+(isFinite(w.duration)?+w.duration:0),0),totalVK=Math.round(filtered.reduce((a,w)=>a+safeVol(w),0)/1000),avgD=totalW?Math.round(totalD/totalW):0;
   
   // Consistency over selected range
   let consistency = 0;
@@ -1763,12 +1841,157 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
   const [hiitConfig, setHiitConfig] = useState(null);
   const [exTimer, setExTimer] = useState(0);
   const [exTimerActive, setExTimerActive] = useState(false);
-  const [lastCurEx, setLastCurEx] = useState(curEx);
+  const [lastCurEx, setLastCurEx] = useState(-1);
   const [hiitMode, setHiitMode] = useState(activeWorkout?.hiitMode || false);
   const [hiitDurations, setHiitDurations] = useState(activeWorkout?.hiitDurations || {});
   const [showHiitConfig, setShowHiitConfig] = useState(false);
   const [selectedHiitVal, setSelectedHiitVal] = useState(null);
   const [hiitStatus, setHiitStatus] = useState(activeWorkout?.hiitStatus || {}); // Tracks actual seconds done per ex
+  const [voiceVolume, setVoiceVolume] = useState(() => ls("voice_volume", 0.8));
+  const [gpsData, setGpsData] = useState(activeWorkout?.gpsData || {});
+  const mapRef = useRef(null);
+  const mapInst = useRef(null);
+  const polyRef = useRef(null);
+  const watchId = useRef(null);
+  const timerRef = useRef(timer);
+
+  const calcDist = (lat1, lon1, lat2, lon2) => {
+    const p = 0.017453292519943295; const c = Math.cos;
+    const a = 0.5 - c((lat2 - lat1) * p)/2 + c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p))/2;
+    return 12742 * Math.asin(Math.sqrt(a));
+  };
+
+  const workerRef = useRef(null);
+  const wakeLockRef = useRef(null);
+
+
+  useEffect(() => {
+    localStorage.setItem("ff_voice_volume", JSON.stringify(voiceVolume));
+  }, [voiceVolume]);
+
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        if (window.dbg) dbg('💡 Wake Lock aktiv', '#0f0');
+      } catch (err) {
+        if (window.dbg) dbg('❌ Wake Lock Fehler: ' + err.message, '#f55');
+      }
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        if (window.dbg) dbg('💤 Wake Lock deaktiviert', '#888');
+      } catch (err) {
+        console.warn('Wake lock release error:', err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (running) requestWakeLock();
+    else releaseWakeLock();
+    return () => { releaseWakeLock(); };
+  }, [running]);
+
+  useEffect(() => {
+    workerRef.current = new Worker(timerWorkerUrl);
+    workerRef.current.onmessage = (e) => {
+      if (e.data === 'tick') {
+        window.dispatchEvent(new CustomEvent('worker-tick'));
+      }
+    };
+    return () => {
+      workerRef.current.terminate();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (running) {
+      workerRef.current.postMessage('start');
+    } else {
+      workerRef.current.postMessage('stop');
+    }
+  }, [running]);
+
+  useEffect(() => { timerRef.current = timer; }, [timer]);
+
+  useEffect(() => {
+    if (step === 2 && running && exercises[curEx]?.trackGPS) {
+      if ('geolocation' in navigator) {
+        if (!gpsData[curEx]) setGpsData(p => ({...p, [curEx]: { path: [], dist: 0, lastPos: null }}));
+        watchId.current = navigator.geolocation.watchPosition((pos) => {
+          const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+          setGpsData(prev => {
+            const current = prev[curEx] || { path: [], dist: 0, lastPos: null };
+            let newDist = current.dist;
+            if (current.lastPos) newDist += calcDist(current.lastPos[0], current.lastPos[1], lat, lng);
+            const newPath = [...current.path, [lat, lng]];
+            
+            if (mapInst.current) {
+              mapInst.current.setView([lat, lng], 16);
+              if (polyRef.current) polyRef.current.setLatLngs(newPath);
+              else polyRef.current = window.L.polyline(newPath, {color: '#06D6A0', weight: 5}).addTo(mapInst.current);
+              
+              if (!mapInst.current.posMarker) {
+                 mapInst.current.posMarker = window.L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#05b586', fillOpacity: 1 }).addTo(mapInst.current);
+              } else {
+                 mapInst.current.posMarker.setLatLng([lat, lng]);
+              }
+            }
+            
+            setSets(old => {
+              const ns = JSON.parse(JSON.stringify(old));
+              if (ns[curEx] && ns[curEx][0]) {
+                ns[curEx][0].km = newDist.toFixed(2);
+                const tz = timerRef.current || 1;
+                ns[curEx][0].tempo = ((newDist / tz) * 3600).toFixed(1);
+                ns[curEx][0].kcal = Math.round(newDist * 70); // simplistic avg kcal calc
+                ns[curEx][0].routePath = newPath;
+              }
+              return ns;
+            });
+
+            return {...prev, [curEx]: {...current, path: newPath, dist: newDist, lastPos: [lat, lng]}};
+          });
+        }, (err) => console.log('GPS err:', err), { enableHighAccuracy: true });
+      }
+    } else {
+      if (watchId.current) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; }
+    }
+    return () => { if (watchId.current) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; } };
+  }, [step, running, curEx]);
+
+  useEffect(() => {
+    if (step === 2 && exercises[curEx]?.trackGPS && mapRef.current) {
+      if (!mapInst.current) {
+        mapInst.current = window.L.map(mapRef.current).setView([51.1657, 10.4515], 14);
+        window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; OSM'
+        }).addTo(mapInst.current);
+        const p = gpsData[curEx]?.path || [];
+        if (p.length > 0) {
+          polyRef.current = window.L.polyline(p, {color: '#06D6A0', weight: 5}).addTo(mapInst.current);
+          mapInst.current.fitBounds(polyRef.current.getBounds(), {padding: [20,20]});
+        } else {
+          mapInst.current.on('locationfound', function(e) {
+            if (!mapInst.current.posMarker) {
+              mapInst.current.posMarker = window.L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#05b586', fillOpacity: 1 }).addTo(mapInst.current);
+            } else {
+              mapInst.current.posMarker.setLatLng(e.latlng);
+            }
+          });
+          mapInst.current.locate({setView: true, maxZoom: 16});
+        }
+      }
+    } else {
+      if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; polyRef.current = null; }
+    }
+  }, [step, curEx]);
 
   
   useEffect(() => {
@@ -1779,55 +2002,8 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
 
   useEffect(() => { if (activeWorkout && activeWorkout.timer !== timer) setTimer(activeWorkout.timer); }, [activeWorkout?.timer]);
 
-  // Audible alerts and timers
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(() => {
-      setTimer(v => v + 1);
-      if (exTimerActive && exTimer > 0) {
-        setExTimer(v => {
-          const next = v - 1;
-          // Track actual seconds done
-          setHiitStatus(s => ({...s, [curEx]: (s[curEx]||0) + 1}));
-          
-          if (next <= 0) {
-            setExTimerActive(false);
-            if (hiitMode) {
-              playBeep(880, 0.6, 0.4);
-              goNext();
-            } else {
-              playBeep(880, 0.4, 0.2);
-            }
-            return 0;
-          }
-          if (hiitMode && next <= 3) {
-             playBeep(440, 0.1, 0.15);
-          }
-          return next;
-        });
-      }
-    }, 1000);
-    return () => clearInterval(t);
-  }, [running, exTimerActive, exTimer, hiitMode, curEx]);
-
-  useEffect(() => {
-    if (step === 2 && curEx !== lastCurEx) {
-      setLastCurEx(curEx);
-      playBeep(660, 0.3, 0.1); // Mid beep for new exercise
-      if (hiitMode && hiitDurations[curEx]) {
-        setExTimer(hiitDurations[curEx]);
-        setExTimerActive(true);
-      } else if (exercises[curEx]?.hiitTimer?.enabled) {
-        setExTimer(exercises[curEx].hiitTimer.duration || 30);
-        setExTimerActive(false);
-      }
-    }
-    if (step === 3) {
-      playBeep(880, 1.2, 0.2); // Success sound
-    }
-  }, [curEx, step, exercises, hiitMode, hiitDurations]);
-
   useEffect(()=>{
+    if (step !== 1) return; // Only initialize/update when not in an active workout
     const plan=data.plans.find(p=>p.id===parseInt(planId));
     if(plan){
       const exs=(plan.exercises||[]).map(e=>{
@@ -1837,8 +2013,11 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           return { ...exObj, photo: libMatch.thumbnail, description: libMatch.description, hiitTimer: libMatch.hiitTimer, 
             trackSets: exObj.trackSets ?? libMatch.trackSets ?? true, trackReps: exObj.trackReps ?? libMatch.trackReps ?? true,
             trackWeight: exObj.trackWeight ?? libMatch.trackWeight ?? true, trackKcal: libMatch.trackKcal, trackKm: libMatch.trackKm,
-            trackIncline: libMatch.trackIncline, trackTempo: libMatch.trackTempo,
-            sets: libMatch.sets || exObj.sets || 1, reps: libMatch.reps || exObj.reps || "", weight: libMatch.weight || exObj.weight || "" };
+            trackIncline: libMatch.trackIncline, trackTempo: libMatch.trackTempo, trackGPS: libMatch.trackGPS,
+            sets: libMatch.sets || exObj.sets || 1, reps: libMatch.reps || exObj.reps || "", weight: libMatch.weight || exObj.weight || "",
+
+            kcal: libMatch.kcal || "", km: libMatch.km || "", incline: libMatch.incline || "", tempo: libMatch.tempo || "" };
+
         }
         return exObj;
       });
@@ -1846,25 +2025,88 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
       const initSets={};
       exs.forEach((ex,i)=>{
         const count = parseInt(ex.sets) || 1;
-        initSets[i] = Array.from({length:count}, ()=>({reps:ex.reps||"", weight:ex.weight||"", preset:true}));
+        const setObj = { preset:true, done:false };
+        if (ex.trackReps !== false) setObj.reps = ex.reps || "";
+        if (ex.trackWeight !== false) setObj.weight = ex.weight || "";
+        if (ex.trackKcal === true) setObj.kcal = ex.kcal || "";
+        if (ex.trackKm === true) setObj.km = ex.km || "";
+        if (ex.trackIncline === true) setObj.incline = ex.incline || "";
+        if (ex.trackTempo === true) setObj.tempo = ex.tempo || "";
+        
+        initSets[i] = Array.from({length:count}, ()=>({...setObj}));
+
       });
       setSets(initSets);
     }
-  },[planId, library]);
+  },[planId, library, step]);
+
+  const getExFields = (ex) => {
+    const f = [];
+    if (ex.trackReps !== false) f.push({ key: 'reps', label: 'WDH', unit: 'WDH', color: '#FF6B35' });
+    if (ex.trackWeight !== false) f.push({ key: 'weight', label: 'kg', unit: 'kg', color: '#A78BFA' });
+    if (ex.trackKcal === true) f.push({ key: 'kcal', label: 'kcal', unit: 'kcal', color: '#FF6B6B' });
+    if (ex.trackKm === true) f.push({ key: 'km', label: 'km', unit: 'km', color: '#4CC9F0' });
+    if (ex.trackIncline === true) f.push({ key: 'incline', label: 'Steigung', unit: '%', color: '#FFD166' });
+    if (ex.trackTempo === true) f.push({ key: 'tempo', label: 'km/h', unit: 'km/h', color: '#EF476F' });
+
+    return f;
+  };
 
   const fmtTimer=t=>{const m=Math.floor(t/60),s=t%60;return`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;};
-  const updSet=(ei,si,k,v)=>setSets(s=>{const n=JSON.parse(JSON.stringify(s));if(n[ei]&&n[ei][si]){n[ei][si][k]=v;n[ei][si].preset=false;}return n;});
+  const updSet=(ei,si,k,v)=>setSets(s=>{
+    const n = JSON.parse(JSON.stringify(s));
+    if(!n[ei]) n[ei] = [];
+    if(!n[ei][si]) {
+      const baseEx = exercises[ei] || {};
+      const setObj = { preset:true, done:false };
+      if (baseEx.trackReps !== false) setObj.reps = baseEx.reps || "";
+      if (baseEx.trackWeight !== false) setObj.weight = baseEx.weight || "";
+      if (baseEx.trackKcal === true) setObj.kcal = baseEx.kcal || "";
+      if (baseEx.trackKm === true) setObj.km = baseEx.km || "";
+      if (baseEx.trackIncline === true) setObj.incline = baseEx.incline || "";
+      if (baseEx.trackTempo === true) setObj.tempo = baseEx.tempo || "";
+      
+      while(n[ei].length <= si) {
+        n[ei].push({...setObj});
+      }
+    }
+    if(n[ei][si]){
+      n[ei][si][k] = v;
+      n[ei][si].preset = false;
+    }
+    return n;
+  });
   const goNext=()=>{
-    if(curEx<exercises.length-1) setCurEx(i=>i+1);
-    else if(repeatRounds && curRound < (parseInt(totalRounds) || 1)){ setCurEx(0); setCurRound(r=>r+1); notify(`Durchgang ${curRound+1} gestartet! 💪`); }
+    const tSets = parseInt(totalSets) || 1;
+    const tRounds = parseInt(totalRounds) || 1;
+    if(curEx < exercises.length - 1) setCurEx(i=>i+1);
+    else if(repeatRounds && curRound < tRounds){ setCurEx(0); setCurRound(r=>r+1); notify(`Durchgang ${curRound+1} gestartet! 💪`); }
     else { setStep(3); setRunning(false); setEndTime(new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})); }
   };
   const toggleSetDone=(ei,si)=>{
-    setSets(s=>{
-      const n=JSON.parse(JSON.stringify(s));
-      if(n[ei]&&n[ei][si]) {
-        n[ei][si].done=!n[ei][si].done;
-        if (n[ei][si].done) playBeep(880, 0.4, 0.1); // Short high beep for set done
+    if (ei === undefined || si === undefined) return;
+    setSets(prevSets => {
+      const n = typeof prevSets === 'string' ? JSON.parse(prevSets) : JSON.parse(JSON.stringify(prevSets));
+      if (!n[ei]) n[ei] = [];
+      const baseEx = exercises[ei] || {};
+      
+      if (!n[ei][si]) {
+        const setObj = { preset:true, done:false };
+        if (baseEx.trackReps !== false) setObj.reps = baseEx.reps || "";
+        if (baseEx.trackWeight !== false) setObj.weight = baseEx.weight || "";
+        if (baseEx.trackKcal === true) setObj.kcal = baseEx.kcal || "";
+        if (baseEx.trackKm === true) setObj.km = baseEx.km || "";
+        if (baseEx.trackIncline === true) setObj.incline = baseEx.incline || "";
+        if (baseEx.trackTempo === true) setObj.tempo = baseEx.tempo || "";
+        
+        while (n[ei].length <= si) {
+          n[ei].push({...setObj});
+        }
+      }
+      
+      if (n[ei][si]) {
+        n[ei][si].done = !n[ei][si].done;
+        if (n[ei][si].done) playBeep(880, 0.4, 0.1);
       }
       return n;
     });
@@ -1879,7 +2121,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
         return { name: ex.name, duration: dur, isHiit: true };
       }
       const sArr = sets[ei] || [];
-      const valid = sArr.filter(s => s.done && (parseInt(s.reps)>0 || parseFloat(s.weight)>0 || parseFloat(s.kcal)>0 || parseFloat(s.km)>0));
+      const valid = sArr.filter(s => s.done);
       return valid.length > 0 ? { name: ex.name, sets: valid } : null;
     }).filter(Boolean);
     
@@ -1887,15 +2129,121 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
     
     if (!hiitMode) {
       parsed.forEach(ex=>{
-        const best=ex.sets.reduce((b,s)=>s.weight*s.reps>b.weight*b.reps?s:b,{reps:0,weight:0});
-        if(best.weight>0) onSavePR(ex.name,best.weight,best.reps);
+        const bestW=ex.sets.reduce((b,s)=>{
+           const curVal = (parseFloat(s.weight)||0)*(parseFloat(s.reps)||0);
+           const bestVal = (parseFloat(b.weight)||0)*(parseFloat(b.reps)||0);
+           return curVal > bestVal ? s : b;
+        },{reps:0,weight:0});
+        const bestKm = ex.sets.reduce((b,s) => (parseFloat(s.km)||0) > (parseFloat(b.km)||0) ? s : b, {km:0});
+        const bestKcal = ex.sets.reduce((b,s) => (parseFloat(s.kcal)||0) > (parseFloat(b.kcal)||0) ? s : b, {kcal:0});
+
+        onSavePR(ex.name, bestW.weight, bestW.reps, bestKm.km, bestKcal.kcal);
       });
     }
+
 
     setData(d=>({...d,workouts:[{ id:Date.now(), planId:parseInt(planId), name:plan?.name||"Training", date, duration:Math.round(timer/60), exercises:parsed, startTime, endTime, hiitMode },...d.workouts]}));
     notify("Training gespeichert! 💪");
     setStep(1);setTimer(0);setRunning(false);setCurEx(0);setCurRound(1);setStartTime(null);setEndTime(null); setActiveWorkout(null); setHiitStatus({});
   };
+
+  // Audible alerts and timers
+  const lastTickTimeRef = useRef(Date.now());
+  const stateRef = useRef({ running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify });
+  useEffect(() => {
+    stateRef.current = { running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify };
+  }, [running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify]);
+
+  useEffect(() => {
+    const handleTick = () => {
+      const { running, exTimerActive, hiitMode, curEx, voiceVolume, goNext } = stateRef.current;
+      if (!running) {
+        lastTickTimeRef.current = Date.now();
+        return;
+      }
+      
+      const now = Date.now();
+      const diffInMs = now - lastTickTimeRef.current;
+      const ticks = Math.floor(diffInMs / 1000);
+      
+      if (ticks > 0) {
+        lastTickTimeRef.current += ticks * 1000;
+        
+        // Process each missed second
+        for (let i = 0; i < ticks; i++) {
+          setTimer(v => v + 1);
+          
+          if (stateRef.current.exTimerActive) {
+            setExTimer(v => {
+              if (v <= 0) return 0;
+              const next = v - 1;
+              setHiitStatus(s => ({...s, [stateRef.current.curEx]: (s[stateRef.current.curEx]||0) + 1}));
+              
+              if (next <= 0) {
+                // Wait for state updates to settle before calling goNext
+                setTimeout(() => {
+                   const latest = stateRef.current;
+                   if (latest.exTimerActive) { // Double check if still active
+                     setExTimerActive(false);
+                     if (latest.hiitMode) {
+                       playBeep(880, 0.6, 0.4);
+                       latest.goNext();
+                     } else {
+                       playBeep(880, 0.4, 0.2);
+                     }
+                   }
+                }, 0);
+                return 0;
+              }
+              if (stateRef.current.hiitMode) {
+                 if (next === 3) speak("3", stateRef.current.voiceVolume);
+                 if (next === 2) speak("2", stateRef.current.voiceVolume);
+                 if (next === 1) speak("1", stateRef.current.voiceVolume);
+                 if (next <= 3 && next > 0) playBeep(440, 0.1, 0.15);
+              }
+              return next;
+            });
+          }
+        }
+      }
+    };
+
+    window.addEventListener('worker-tick', handleTick);
+    // Also handle visibility change to catch up immediately when returning to the app
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') handleTick();
+    };
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('worker-tick', handleTick);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (step === 2 && curEx !== lastCurEx) {
+      setLastCurEx(curEx);
+      playBeep(660, 0.3, 0.1); // Mid beep for new exercise
+      if (hiitMode) {
+        const exName = exercises[curEx]?.name || "Nächste Übung";
+        const roundTxt = repeatRounds ? `Durchgang ${curRound}. ` : "";
+        speak(`${roundTxt}${exName} startet`, voiceVolume);
+      }
+      if (hiitMode && hiitDurations[curEx]) {
+        setExTimer(hiitDurations[curEx]);
+        setExTimerActive(true);
+      } else if (exercises[curEx]?.hiitTimer?.enabled) {
+        setExTimer(exercises[curEx].hiitTimer.duration || 30);
+        setExTimerActive(false);
+      }
+    }
+    if (step === 3) {
+      playBeep(880, 1.2, 0.2); // Success sound
+      if (hiitMode) speak("Training Ende", voiceVolume);
+    }
+  }, [curEx, step, exercises, hiitMode, hiitDurations, curRound, voiceVolume]);
+
 
   const plan=data.plans.find(p=>p.id===parseInt(planId));
   const curExData=exercises[curEx];
@@ -1916,14 +2264,16 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
         <div style={{display:"flex", gap:14, marginBottom:20, alignItems: "flex-end"}}>
           <div style={{flex: 1, minWidth: 0}}>
             <label style={s.lbl}>Trainingsplan</label>
-            <select className="customSelect" style={{...s.inp, display: "block", height: 44, width: "100%", borderColor: plan?.color || "#2A2A30", color: plan?.color || "#F0EDE8", background: plan ? `${plan.color}15` : "#0D0D0F"}} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
-              <option value="">Kein Plan</option>
-              {data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <div style={{position: "relative"}}>
+              <select className="customSelect" style={{...s.inp, display: "block", height: 48, width: "100%", borderColor: plan?.color || "#2A2A30", color: plan?.color || "#F0EDE8", background: plan ? `${plan.color}15` : "#0D0D0F", paddingRight: 32}} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
+                <option value="">Kein Plan</option>
+                {data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
           </div>
           <div style={{flex: 1, minWidth: 0}}>
             <label style={s.lbl}>Datum</label>
-            <input style={{...s.inp, display: "block", height: 44, width: "100%", minWidth: 0}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+            <input style={{...s.inp, display: "block", height: 48, width: "100%", minWidth: 0, boxSizing: "border-box", appearance: "none"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
           </div>
         </div>
 
@@ -1995,19 +2345,19 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
             </div>
             <div style={{flex:1, display:"flex", justifyContent:"space-between", alignItems:"center", gap: 10, minWidth:0}}>
               <div style={{fontSize:14, fontWeight:700, color:"#F0EDE8", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{e.name}</div>
-              <div style={{display:"flex", gap:6, alignItems:"center", flexShrink: 0}}>
-                {e.reps !== undefined && (
-                  <div style={{position:"relative", display:"flex", alignItems:"center"}}>
-                    <input style={{width:68, background: "#FF6B3508", color: "#FF6B35CC", padding: "4px 34px 4px 6px", borderRadius: 8, fontSize: 10, fontWeight: 800, border: "1px solid #FF6B351F", textAlign: "left", outline: "none"}} value={e.reps||""} onFocus={e=>e.target.select()} onChange={val=>{const nx=[...exercises];nx[i].reps=val.target.value;setExercises(nx);}} placeholder="10"/>
-                    <span style={{position:"absolute", right:6, fontSize:9, color:"#FF6B3566", pointerEvents:"none", fontWeight:800}}>WDH</span>
+              <div style={{display:"flex", gap:6, alignItems:"center", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end"}}>
+                {getExFields(e).map(f => (
+                  <div key={f.key} style={{position:"relative", display:"flex", alignItems:"center"}}>
+                    <input 
+                      style={{width:74, background: f.color+"08", color: f.color+"CC", padding: "4px 28px 4px 6px", borderRadius: 8, fontSize: 10, fontWeight: 800, border: `1px solid ${f.color}1F`, textAlign: "left", outline: "none"}} 
+                      value={e[f.key]||""} 
+                      onFocus={e=>e.target.select()} 
+                      onChange={val=>{const nx=[...exercises];nx[i][f.key]=val.target.value;setExercises(nx);}} 
+                      placeholder="0"
+                    />
+                    <span style={{position:"absolute", right:6, fontSize:8, color:f.color+"66", pointerEvents:"none", fontWeight:800}}>{f.unit}</span>
                   </div>
-                )}
-                {e.weight !== undefined && (
-                  <div style={{position:"relative", display:"flex", alignItems:"center"}}>
-                    <input style={{width:68, background: "#A78BFA08", color: "#A78BFACC", padding: "4px 24px 4px 6px", borderRadius: 8, fontSize: 10, fontWeight: 800, border: "1px solid #A78BFA1F", textAlign: "left", outline: "none"}} value={e.weight||""} onFocus={e=>e.target.select()} onChange={val=>{const nx=[...exercises];nx[i].weight=val.target.value;setExercises(nx);}} placeholder="10"/>
-                    <span style={{position:"absolute", right:6, fontSize:9, color:"#A78BFA66", pointerEvents:"none", fontWeight:800}}>kg</span>
-                  </div>
-                )}
+                ))}
               </div>
             </div>
           </div>))}
@@ -2019,16 +2369,47 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           const ns = {};
           exercises.forEach((ex,i)=>{ 
             const count = repeatRounds? (rounds*setsPerEx) : (parseInt(ex.sets)||1);
-            ns[i] = Array.from({length:count}, ()=>({ reps: ex.reps||"", weight: ex.weight||"", preset: true }));
+            const setObj = { preset: true, done: false };
+            if (ex.trackReps !== false) setObj.reps = ex.reps || "";
+            if (ex.trackWeight !== false) setObj.weight = ex.weight || "";
+            if (ex.trackKcal === true) setObj.kcal = ex.kcal || "";
+            if (ex.trackKm === true) setObj.km = ex.km || "";
+            if (ex.trackIncline === true) setObj.incline = ex.incline || "";
+            if (ex.trackTempo === true) setObj.tempo = ex.tempo || "";
+            
+            ns[i] = Array.from({length:count}, ()=>({...setObj}));
           });
+
           setSets(ns); setStep(2); setRunning(true); setTimer(0); setStartTime(new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}));
+          lastTickTimeRef.current = Date.now();
           if (hiitMode && hiitDurations[0]) {
             setExTimer(hiitDurations[0]);
             setExTimerActive(true);
+            speak("3. 2. 1. Training startet", voiceVolume);
           }
           playBeep(440, 0.8, 0.15);
           setTimeout(() => playBeep(554, 0.8, 0.15), 200);
         }}>▶ Training starten</button>
+
+        {hiitMode && (
+          <div style={{marginTop: 15, background: "#0D0D0F", padding: 16, borderRadius: 12, border: "1px solid #1E1E24"}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 10}}>
+              <div style={{fontSize: 11, fontWeight: 800, color: "#aaa", textTransform: "uppercase"}}>Sprach-Lautstärke</div>
+              <div style={{fontSize: 12, fontWeight: 900, color: "#FFD166"}}>{Math.round(voiceVolume * 100)}%</div>
+            </div>
+            <input 
+              type="range" 
+              min="0" max="1" step="0.1" 
+              style={{width: "100%", accentColor: "#FFD166"}} 
+              value={voiceVolume} 
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                setVoiceVolume(v);
+                if (v > 0) speak("Test", v);
+              }}
+            />
+          </div>
+        )}
 
         {showHiitConfig && (
           <div style={s.overlay2} onClick={() => setShowHiitConfig(false)}>
@@ -2128,87 +2509,204 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           )}
           <div style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile ? 22 : 26, fontWeight:800,color:"#fff",marginBottom:12}}>{curExData.name}</div>
           <div style={{width:"100%",height: isMobile ? 180 : 220, borderRadius:20,overflow:"hidden",marginBottom:16,background:"#0D0D0F",border:"1px solid #1E1E24",position:"relative", boxShadow: "0 10px 30px rgba(0,0,0,0.3)"}}>
-            {curExData.photo?<img src={curExData.photo} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#333"}}>{IC.dumbbell}</div>}
-            <button style={{position:"absolute",bottom:12,right:12,background:"rgba(255,107,33,0.9)",borderRadius:"50%",width:36,height:36,border:"none",color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800}} onClick={()=>setShowInfo(true)}>i</button>
+            {curExData.trackGPS ? (
+              <div ref={mapRef} style={{width:"100%", height:"100%"}}></div>
+            ) : (
+              curExData.photo?<img src={curExData.photo} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#333"}}>{IC.dumbbell}</div>
+            )}
+            <button style={{position:"absolute",bottom:12,right:12,background:"rgba(255,107,33,0.9)",borderRadius:"50%",width:36,height:36,border:"none",color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, zIndex: 1000}} onClick={()=>setShowInfo(true)}>i</button>
           </div>
 
-          {showInfo&&<div style={s.overlay2} onClick={()=>setShowInfo(false)}>
-            <div style={{...s.modal,maxWidth:400, borderRadius: 24}} onClick={e=>e.stopPropagation()}>
-              <h3 style={{...s.modalTitle, color: plan?.color || "#FF6B35"}}>{curExData.name}</h3>
-              <div style={{fontSize:14,color:"#aaa",lineHeight:1.6,margin:"20px 0"}}>{curExData.description || "Keine Anleitung verfügbar."}</div>
-              <button style={{...s.primaryBtn, width: "100%"}} onClick={()=>setShowInfo(false)}>Verstanden</button>
-            </div>
-          </div>}
 
-          {!hiitMode && (
-            <>
-              <div style={{marginBottom:15,borderBottom:"1px solid #1E1E24",paddingBottom:10,display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:800,color:"#666"}}>
-                <span>Satz <span style={{color:"fff"}}>{curSets.filter(s=>s.done).length+1}</span> / <span style={{color:"fff"}}>{curSets.length}</span></span>
-                <span>{repeatRounds ? <span style={{color:"fff"}}>Durchgang {curRound}</span> : ""}</span>
-                <span>Übung <span style={{color:"fff"}}>{curEx+1}</span> / <span style={{color:"fff"}}>{exercises.length}</span></span>
+          {showInfo && (
+            <div style={s.overlay2} onClick={()=>setShowInfo(false)}>
+              <div style={{...s.modal, maxWidth:400, borderRadius: 24}} onClick={e=>e.stopPropagation()}>
+                <h3 style={{...s.modalTitle, color: plan?.color || "#FF6B35"}}>{curExData.name}</h3>
+                <div style={{fontSize:14,color:"#aaa",lineHeight:1.6,margin:"20px 0"}}>{curExData.description || "Keine Anleitung verfügbar."}</div>
+                <button style={{...s.primaryBtn, width: "100%"}} onClick={()=>setShowInfo(false)}>Verstanden</button>
               </div>
+            </div>
+          )}
 
-              {curSets.map((set, siRel) => {
-                const siGlobal = repeatRounds ? (curRound-1)*(parseInt(totalSets)||1)+siRel : siRel;
-                const hasMany = curSets.length > 1;
-                return (
-                  <div key={siGlobal} style={{display:"grid", gridTemplateColumns: hasMany ? "34px 1fr 1fr 40px" : "34px 1fr 1fr", gap:10, alignItems:"center", marginBottom:12, background: set.done?"#06D6A010":"#0D0D0F", padding:12, borderRadius:14, border:`1px solid ${set.done?"#06D6A033":"#1E1E24"}`}}>
-                    <div style={{...s.setN, background:set.done?"#06D6A0":"#1F1F24", color:set.done?"#000":"#666"}}>{siGlobal+1}</div>
-                    <div style={{position:"relative", display:"flex", alignItems:"center"}}>
-                      <input style={{...s.setInp, width:"100%", color: "#FF6B35", background: "#FF6B3508", border: "1px solid #FF6B351F", borderRadius: 8, textAlign: "left", paddingRight: 34}} type="number" value={set.reps} onFocus={e=>e.target.select()} onChange={e=>updSet(curEx, siGlobal, 'reps', e.target.value)} placeholder="0"/>
-                      <span style={{position:"absolute", right:8, fontSize:9, color:"#FF6B3566", pointerEvents:"none", fontWeight:800}}>WDH</span>
+          {curExData.trackGPS && (
+            <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10, marginBottom:16}}>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:10, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Gesamtdistanz</div>
+                <div style={{fontSize:20, color:"#4CC9F0", fontWeight:900}}>{curSets[0]?.km || "0.00"} <span style={{fontSize:12}}>km</span></div>
+              </div>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:10, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Tempo (Ø)</div>
+                <div style={{fontSize:20, color:"#EF476F", fontWeight:900}}>{curSets[0]?.tempo || "0.0"} <span style={{fontSize:12}}>km/h</span></div>
+              </div>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:10, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Kalorien</div>
+                <div style={{fontSize:20, color:"#FF6B6B", fontWeight:900}}>{curSets[0]?.kcal || "0"} <span style={{fontSize:12}}>kcal</span></div>
+              </div>
+            </div>
+          )}
+
+          {!hiitMode && !curExData.trackGPS && (
+             <div style={{marginBottom:15,borderBottom:"1px solid #1E1E24",paddingBottom:10,display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:800,color:"#fff"}}>
+
+                <span>
+                   Satz <span>{(() => {
+                      const tSetsNum = parseInt(totalSets) || 1;
+                      if (!repeatRounds) return curSets.filter(s=>s.done).length + 1;
+                      const setsInThisRound = curSets.slice((curRound-1)*tSetsNum, curRound*tSetsNum);
+                      return setsInThisRound.filter(s=>s.done).length + 1;
+                   })()}</span> / <span>{repeatRounds ? (parseInt(totalSets)||1) : curSets.length}</span>
+                </span>
+                <span>{repeatRounds ? <span>Durchgang {curRound}</span> : ""}</span>
+                <span>Übung <span>{curEx+1}</span> / <span>{exercises.length}</span></span>
+             </div>
+          )}
+
+          {curSets.length > 0 && !hiitMode && !curExData.trackGPS && (
+            <>
+
+              {!repeatRounds ? (
+                // Normal Mode: Show all sets
+                curSets.map((set, si) => (
+                  <div key={si} style={{display:"grid", gridTemplateColumns: `34px 1fr 40px`, gap:10, alignItems:"center", marginBottom:12, background: set.done?"#06D6A020":"#0D0D0F", padding:12, borderRadius:14, border:`1px solid ${set.done?"#06D6A088":"#1E1E24"}`}}>
+                    <div style={{...s.setN, background:set.done?"#06D6A0":"#1F1F24", color:set.done?"#000":"#666"}}>{si+1}</div>
+                    
+                    <div style={{display: "flex", gap: 8, flex: 1, flexWrap: "wrap"}}>
+                      {getExFields(curExData).map(f => (
+                        <div key={f.key} style={{position:"relative", display:"flex", alignItems:"center", flex: 1, minWidth: 60}}>
+                          <input 
+                            style={{width:"100%", height: 38, background: f.color+"08", color: f.color, padding: "0 28px 0 8px", borderRadius: 8, fontSize: 12, fontWeight: 800, border: `1px solid ${f.color}1F`, textAlign: "left", outline: "none"}} 
+                            type="text" 
+                            value={set[f.key]||""} 
+                            onFocus={e=>e.target.select()} 
+                            onChange={e=>updSet(curEx, si, f.key, e.target.value)} 
+                            placeholder="0"
+                          />
+                          <span style={{position:"absolute", right:8, fontSize:8, color:f.color+"66", pointerEvents:"none", fontWeight:800}}>{f.unit}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div style={{position:"relative", display:"flex", alignItems:"center"}}>
-                      <input style={{...s.setInp, width:"100%", color: "#A78BFA", background: "#A78BFA08", border: "1px solid #A78BFA1F", borderRadius: 8, textAlign: "left", paddingRight: 28}} type="number" value={set.weight} onFocus={e=>e.target.select()} onChange={e=>updSet(curEx, siGlobal, 'weight', e.target.value)} placeholder="0"/>
-                      <span style={{position:"absolute", right:8, fontSize:9, color:"#A78BFA66", pointerEvents:"none", fontWeight:800}}>kg</span>
-                    </div>
-                    {hasMany && (
-                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                        <button style={{background:set.done?"#06D6A0":"transparent", border:`2px solid ${set.done?"#06D6A0":"#2A2A30"}`, color:set.done?"#000":"#06D6A0", borderRadius:8, height:34}} onClick={()=>toggleSetDone(curEx, siGlobal)}>{IC.check}</button>
-                      </div>
+
+                    {curSets.length > 1 && (
+                      <button style={{background:set.done?"#06D6A0":"transparent", border:`2px solid ${set.done?"#06D6A0":"#2A2A30"}`, color:set.done?"#000":"#06D6A0", borderRadius:8, height:34, display: "flex", alignItems: "center", justifyContent: "center"}} onClick={()=>toggleSetDone(curEx, si)}>{IC.check}</button>
                     )}
                   </div>
-                );
-              })}
+                ))
+              ) : (
+                // Multi-Round Mode: Show ONLY sets of current round
+                (() => {
+                  const safeTotalSets = parseInt(totalSets) || 1;
+                  const roundSetsItems = [];
+                  for(let i=0; i < safeTotalSets; i++) {
+                     const siGlobal = (curRound-1)*safeTotalSets + i;
+                     // Robust local state lookup with fallback
+                     const set = (sets[curEx] && sets[curEx][siGlobal]) 
+                        ? sets[curEx][siGlobal] 
+                        : {reps: exercises[curEx]?.reps || "", weight: exercises[curEx]?.weight || "", done:false};
+                     
+                     roundSetsItems.push({siGlobal, set});
+                  }
+                  return roundSetsItems.map(({siGlobal, set}) => (
+                    <div key={`${curRound}-${siGlobal}`} style={{
+                      display:"grid", 
+                      gridTemplateColumns: safeTotalSets > 1 ? "34px 1fr 40px" : "34px 1fr", 
+                      gap:10, 
+                      alignItems:"center", 
+                      marginBottom:12, 
+                      background: set.done ? "rgba(6, 214, 160, 0.25)" : "#0D0D0F", 
+                      padding:12, 
+                      borderRadius:14, 
+                      border: `1px solid ${set.done ? "#06D6A0" : "#1E1E24"}`,
+                      boxShadow: set.done ? "0 0 15px rgba(6, 214, 160, 0.15)" : "none",
+                      transition: "all 0.2s ease"
+                    }}>
+                      <div style={{...s.setN, background:set.done?"#06D6A0":"#1F1F24", color:set.done?"#000":"#666"}}>{siGlobal+1}</div>
+                      
+                      <div style={{display: "flex", gap: 8, flex: 1, flexWrap: "wrap"}}>
+                        {getExFields(curExData).map(f => (
+                          <div key={f.key} style={{position:"relative", display:"flex", alignItems:"center", flex: 1, minWidth: 60}}>
+                            <input 
+                              style={{width:"100%", height: 38, background: f.color+"08", color: f.color, padding: "0 28px 0 8px", borderRadius: 8, fontSize: 12, fontWeight: 800, border: `1px solid ${f.color}1F`, textAlign: "left", outline: "none"}} 
+                              type="text" 
+                              value={set[f.key]||""} 
+                              onFocus={e=>e.target.select()} 
+                              onChange={e=>updSet(curEx, siGlobal, f.key, e.target.value)} 
+                              placeholder="0"
+                            />
+                            <span style={{position:"absolute", right:8, fontSize:8, color:f.color+"66", pointerEvents:"none", fontWeight:800}}>{f.unit}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {safeTotalSets > 1 && (
+                        <button style={{
+                          background: set.done ? "#06D6A0" : "transparent", 
+                          border: `2px solid ${set.done ? "#06D6A0" : "#2A2A30"}`, 
+                          color: set.done ? "#000" : "#06D6A0", 
+                          borderRadius: 8, 
+                          height: 34, 
+                          display: "flex", 
+                          alignItems: "center", 
+                          justifyContent: "center",
+                          transition: "all 0.2s ease"
+                        }} onClick={()=>toggleSetDone(curEx, siGlobal)}>{IC.check}</button>
+                      )}
+                    </div>
+                  ));
+                })()
+              )}
             </>
           )}
-          
-          <div style={{display:"flex", gap:10, marginTop:20}}>
-            <button style={{...s.secBtn, flex: 1}} onClick={() => {
+
+          <div style={{display:"flex", gap:10, marginTop:20, alignItems: "center"}}>
+            <button style={{...s.secBtn, width: 49, height: 50, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0}} onClick={() => {
               if (curEx > 0) setCurEx(i => i - 1);
               else notify("Erste Übung erreicht", "info");
-            }}>← Zurück</button>
+            }} title="Zurück">{IC.arrowLeft}</button>
             
-            {!hiitMode && (
-              curSets.length === 1 ? (
-                <div style={{flex: 2, display: "flex", gap: 10}}>
-                  {!curSets[0].done && (
-                    <button 
-                      style={{...s.primaryBtn, flex: 1, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0"}} 
-                      onClick={() => toggleSetDone(curEx, 0)}
-                    >
-                      Satz fertig ✓
-                    </button>
-                  )}
-                  <button 
-                    style={{...s.primaryBtn, flex: 1, background: "#FF6B3515", border: "2px solid #FF6B35", color: "#FF6B35"}} 
-                    onClick={goNext}
-                  >
-                    {curEx < exercises.length - 1 ? "Nächste →" : "Fertig ✓"}
-                  </button>
-                </div>
-              ) : (
-                <button style={{...s.primaryBtn, flex: 2, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0"}} onClick={goNext}>
-                  {curEx < exercises.length - 1 ? "Nächste Übung →" : "Fertig ✓"}
-                </button>
-              )
-            )}
-            
-            {hiitMode && (
-               <button style={{...s.primaryBtn, flex: 2, background: "#FFD16615", border: "2px solid #FFD166", color: "#FFD166"}} onClick={goNext}>
-                 Überspringen →
-               </button>
-            )}
+            <div style={{flex: 1, display: "flex", gap: 10}}>
+              {!hiitMode && (
+                (() => {
+                  const tSetsNum = parseInt(totalSets) || 1;
+                  const tRoundsNum = parseInt(totalRounds) || 1;
+                  const setsInViewArray = (sets[curEx] || []).slice(repeatRounds?(curRound-1)*tSetsNum : 0, repeatRounds?curRound*tSetsNum : (sets[curEx]||[]).length);
+                  
+                  const allDone = setsInViewArray.length > 0 && setsInViewArray.every(s => s.done);
+                  const showFinishSet = !allDone && setsInViewArray.length > 0;
+                  const isLast = (curEx >= exercises.length - 1) && (!repeatRounds || curRound >= tRoundsNum);
+
+                  return (
+                    <div style={{display: "flex", gap: 10, width: "100%"}}>
+                      {showFinishSet && (
+                        <button 
+                          style={{...s.primaryBtn, flex: 1.5, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0", height: 50, padding: 0, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center"}} 
+                          onClick={() => {
+                            const idx = repeatRounds ? (curRound-1)*tSetsNum : 0;
+                            const targetIdx = setsInViewArray.findIndex(s => !s.done);
+                            const finalSi = targetIdx === -1 ? idx : (repeatRounds ? idx + targetIdx : targetIdx);
+                            toggleSetDone(curEx, finalSi);
+                          }}
+                        >
+                           {setsInViewArray.length > 1 ? "Sätze fertig ✓" : "Satz fertig ✓"}
+                        </button>
+                      )}
+                      
+                      <button 
+                        style={{...s.primaryBtn, flex: 1, background: "#FF6B3515", border: "2px solid #FF6B35", color: "#FF6B35", height: 50, padding: 0, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", width: !showFinishSet ? "100%" : "auto"}} 
+                        onClick={goNext}
+                      >
+                        {isLast ? "Training beenden ✓" : "Nächste →"}
+                      </button>
+                    </div>
+                  );
+                })()
+              )}
+              
+              {hiitMode && (
+                 <button style={{...s.primaryBtn, flex: 1, background: "#FFD16615", border: "2px solid #FFD166", color: "#FFD166", height: 50}} onClick={goNext}>
+                   Überspringen →
+                 </button>
+              )}
+            </div>
           </div>
           <button style={{width:"100%",marginTop:15,background:"#EF476F15",border:"2px solid #EF476F",borderRadius:10,padding:12,color:"#EF476F"}} onClick={()=>setShowEndModal(true)}>⏹ Abbrechen</button>
         </>}
@@ -2250,9 +2748,28 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
   </div>);
 }
 
+function RouteMap({ path }) {
+  const mRef = useRef(null);
+  useEffect(() => {
+    if (mRef.current && path && path.length > 0) {
+      if (!window.L) return;
+      const map = window.L.map(mRef.current, { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView(path[0], 14);
+      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+      const bounds = window.L.polyline(path, {color: '#06D6A0', weight: 4}).addTo(map).getBounds();
+      map.fitBounds(bounds, { padding: [10,10] });
+      return () => map.remove();
+    }
+  }, [path]);
+  return <div ref={mRef} style={{width: "100%", height: 160, borderRadius: 12, marginTop: 12, background: "#111", border: "1px solid #1A1A1F"}}></div>;
+}
+
 function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isMobile}){
+
   const sorted=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date));
   const del=id=>{setData(d=>({...d,workouts:d.workouts.filter(w=>w.id!==id)}));setSelWO(null);notify("Training gelöscht");};
+  const [compMode, setCompMode] = useState(false);
+  const [compSel, setCompSel] = useState([]);
+  const [showComp, setShowComp] = useState(false);
   
   const getWeekNumber = (d) => {
     const t = new Date(d.getTime());
@@ -2287,20 +2804,25 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
     if(!w){setSelWO(null);return null;}
     const plan=data.plans.find(p=>p.id===w.planId);
     const vol = (w.exercises||[]).reduce((a,e) => {
-      if (e.isHiit) return a; // HIIT has no weight volume
+      if (e.isHiit) return a; 
       return a + (e.sets||[]).reduce((b,s) => b + (s.done !== false ? (parseFloat(s.weight)||0) * (parseInt(s.reps)||0) : 0), 0);
     }, 0);
+    const wKcal = (w.exercises||[]).reduce((a,e) => a + (e.sets||[]).reduce((b,s) => b + (parseFloat(s.kcal)||0), 0), 0);
+    const wKm = (w.exercises||[]).reduce((a,e) => a + (e.sets||[]).reduce((b,s) => b + (parseFloat(s.km)||0), 0), 0);
 
-    
     return(
       <div style={selWO?{...s.page,paddingTop:20}:{...s.page}} className="fadeIn">
         <button style={{...s.backBtn, marginBottom:12}} onClick={()=>setSelWO(null)}>← Zurück</button>
         <div style={{...s.wDetail, borderTop: `6px solid ${plan?.color || "#1E1E24"}`, position: "relative", marginTop:0}}>
           {plan && <div style={{position:"absolute", top:0, left:20, background:plan.color, padding:"4px 12px", borderRadius:"0 0 10px 10px", fontSize:10, fontWeight:900, color:"#000", textTransform:"uppercase"}}>{plan.name}</div>}
           {w.photo&&<img src={w.photo} alt="w" style={{width:"100%",height:210,objectFit:"cover",borderRadius:13,marginBottom:18}}/>}
-          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"flex-start",marginBottom:10}}>
-            <div style={{fontSize:12,fontWeight:800,color:"#A78BFA",background:"#A78BFA15",padding:"4px 10px",borderRadius:8}}>{vol}kg Gesamt</div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8,alignItems:"flex-start",marginBottom:10, flexWrap: "wrap"}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#A78BFA",background:"#A78BFA15",padding:"4px 10px",borderRadius:8}}>{vol}kg Volumen</div>
+            {wKcal > 0 && <div style={{fontSize:11,fontWeight:800,color:"#FF6B6B",background:"#FF6B6B15",padding:"4px 10px",borderRadius:8}}>{wKcal} kcal</div>}
+            {wKm > 0 && <div style={{fontSize:11,fontWeight:800,color:"#4CC9F0",background:"#4CC9F015",padding:"4px 10px",borderRadius:8}}>{wKm.toFixed(1)} km</div>}
           </div>
+
+
           <div style={{color:"#888",fontSize:13,display:"flex",gap:10,alignItems:"center",marginBottom:18}}>
             <span>📅 {new Date(w.date).toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long"})}</span>
           </div>
@@ -2377,7 +2899,8 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                     {tk && <span style={{textAlign:"center"}}>kcal</span>}
                     {tm && <span style={{textAlign:"center"}}>km</span>}
                     {ti && <span style={{textAlign:"center"}}>%</span>}
-                    {tt && <span style={{textAlign:"center"}}>T</span>}
+                    {tt && <span style={{textAlign:"center"}}>km/h</span>}
+
                   </div>
                   {(ex.sets||[]).map((set,si)=>(
                     <div key={si} style={{...s.setRow,gridTemplateColumns:gtc,marginBottom:6}}>
@@ -2390,8 +2913,12 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                       {tt && <span style={{background:"#1A1A1F",borderRadius:9,padding:"8px",fontSize:12,textAlign:"center",color:"#EF476F",fontWeight:700}}>{set.tempo || "-"}</span>}
                     </div>
                   ))}
+                  {ex.sets && ex.sets[0] && ex.sets[0].routePath && ex.sets[0].routePath.length > 0 && (
+                    <RouteMap path={ex.sets[0].routePath} />
+                  )}
                 </div>
               );
+
             })}
           </div>
           
@@ -2404,25 +2931,61 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
   }
 
   return(
-    <div style={{...s.page, padding: isMobile ? "10px 10px 80px" : s.page.padding}}>
-      <div style={s.pageHead}>
+    <div style={{...s.page, padding: isMobile ? "10px 10px 80px" : s.page.padding, position: "relative"}}>
+      <div style={{...s.pageHead, display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
         <div><h1 style={{...s.pageTitle, fontSize: isMobile ? 26 : 32}}>Verlauf</h1><p style={s.pageSub}>{data.workouts.length} abgeschlossene Trainings</p></div>
+        <div style={{display: "flex", gap: 10, alignItems: "center"}}>
+           {!compMode ? (
+             <button style={{...s.secBtn, color: "#FFD166", borderColor: "#FFD16622", padding: "8px 14px", borderRadius: 10, display: "flex", gap: 6, alignItems: "center"}} onClick={() => setCompMode(true)}>
+               {IC.plans} Wochenvergleich
+             </button>
+           ) : (
+             <button style={{...s.secBtn, color: "#EF476F", borderColor: "#EF476F22", padding: "8px 14px", borderRadius: 10}} onClick={() => { setCompMode(false); setCompSel([]); }}>
+               Abbrechen
+             </button>
+           )}
+        </div>
       </div>
+
+      {compMode && (
+        <div style={{background: "#FFD16615", border: "1px solid #FFD16633", padding: 14, borderRadius: 16, marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 10, zIndex: 10, backdropFilter: "blur(10px)"}}>
+          <div style={{fontSize: 13, fontWeight: 800, color: "#FFD166"}}>Wähle 2 Wochen zum Vergleich ({compSel.length}/2)</div>
+          <button 
+            disabled={compSel.length !== 2} 
+            style={{...s.primaryBtn, background: compSel.length === 2 ? "#FFD166" : "#222", color: "#000", padding: "6px 16px", borderRadius: 8, fontSize: 12, opacity: compSel.length === 2 ? 1 : 0.5}}
+            onClick={() => setShowComp(true)}
+          >Vergleichen</button>
+        </div>
+      )}
       {!sorted.length&&<div style={{textAlign:"center",padding:"80px 20px",color:"#555",border:"2px dashed #1E1E24",borderRadius:18}}>Noch keine Trainings aufgezeichnet.</div>}
       <div style={{display:"flex",flexDirection:"column",gap: isMobile ? 28 : 36}}>
         {Object.values(grouped).map((group, gi) => (
           <div key={gi} style={{background:"#0D0D0F", border:"1px solid #1E1E24", borderRadius:22, padding: isMobile ? 16 : 20, boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingLeft:4,marginBottom:18, borderBottom:"1px solid #1E1E2450", paddingBottom:12}}>
               <div style={{display:"flex",alignItems:"baseline",gap:10}}>
+                {compMode && (
+                  <input 
+                    type="checkbox" 
+                    checked={compSel.includes(gi)}
+                    disabled={!compSel.includes(gi) && compSel.length >= 2}
+                    onChange={(e) => {
+                      if (e.target.checked) setCompSel([...compSel, gi]);
+                      else setCompSel(compSel.filter(id => id !== gi));
+                    }}
+                    style={{width: 20, height: 20, accentColor: "#FFD166", cursor: "pointer"}}
+                  />
+                )}
                 <span style={{fontSize:24,fontWeight:900,fontFamily:"'Syne',sans-serif",color:"#F0EDE8"}}>KW {group.wn}</span>
                 <span style={{fontSize:14,fontWeight:700,color:"#666"}}>({group.dateRange})</span>
               </div>
-              <button 
-                style={{...s.secBtn, padding:"8px 16px", fontSize:12, fontWeight:800, display:"flex", alignItems:"center", gap:8, border:"1px solid #FF6B3550", color:"#FF6B35", background:"#FF6B3510", borderRadius:12}}
-                onClick={()=>setWeeklyReport(group)}
-              >
-                {IC.stats} Bericht
-              </button>
+              {!compMode && (
+                <button 
+                  style={{...s.secBtn, padding:"8px 16px", fontSize:12, fontWeight:800, display:"flex", alignItems:"center", gap:8, border:"1px solid #FF6B3550", color:"#FF6B35", background:"#FF6B3510", borderRadius:12}}
+                  onClick={()=>setWeeklyReport(group)}
+                >
+                  {IC.stats} Bericht
+                </button>
+              )}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:16}}>
               {group.workouts.map(w=>{
@@ -2444,15 +3007,21 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                       </div>
                     </div>
                     
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+                    <div style={{display:"grid",gridTemplateColumns: w.hiitMode ? "repeat(2,1fr)" : "repeat(4,1fr)",gap:10,marginBottom:12}}>
                       <div style={{textAlign:"center",padding:8,background:"#0D0D0F",borderRadius:10,border:"1px solid #1A1A1F"}}>
                         <div style={{fontSize:10,color:"#666",marginBottom:2,textTransform:"uppercase",fontWeight:700}}>Dauer</div>
                         <div style={{fontSize:13,fontWeight:800,color:"#FF6B35"}}>{w.duration} min</div>
                       </div>
+                      {!w.hiitMode && (
+                        <div style={{textAlign:"center",padding:8,background:"#0D0D0F",borderRadius:10,border:"1px solid #1A1A1F"}}>
+                          <div style={{fontSize:10,color:"#666",marginBottom:2,textTransform:"uppercase",fontWeight:700}}>Volumen</div>
+                          <div style={{fontSize:13,fontWeight:800,color:"#A78BFA"}}>{Math.round((w.exercises||[]).reduce((a,e)=>a+(e.sets||[]).reduce((b,s)=>b+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0),0),0))}kg</div>
+                        </div>
+                      )}
                       <div style={{textAlign:"center",padding:8,background:"#0D0D0F",borderRadius:10,border:"1px solid #1A1A1F"}}>
                         <div style={{fontSize:10,color:"#666",marginBottom:2,textTransform:"uppercase",fontWeight:700}}>Übungen</div>
                         <div style={{fontSize:13,fontWeight:800,color:"#00D9C0"}}>
-                          {w.exercises.length} {w.exercises.length === 1 ? 'Übung' : 'Übungen'}
+                          {w.exercises.length}
                         </div>
                       </div>
                       <div style={{textAlign:"center",padding:8,background:"#0D0D0F",borderRadius:10,border:"1px solid #1A1A1F"}}>
@@ -2460,6 +3029,7 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                         <div style={{fontSize:11,fontWeight:800,color:"#F0EDE8"}}>{fmtDate(w.date)}</div>
                       </div>
                     </div>
+
 
                     {plan && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:6}}>
                       <div>
@@ -2487,6 +3057,114 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                 );
               })}
             </div>
+          </div>
+        ))}
+      </div>
+
+      {showComp && (
+        <div style={s.overlay2} onClick={() => setShowComp(false)}>
+          <div style={{...s.modal, maxWidth: 900, width: "95vw", height: "90vh", overflowY: "auto", padding: isMobile ? 12 : 30}} onClick={e => e.stopPropagation()}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems: "center", marginBottom: isMobile ? 15 : 30}}>
+               <h2 style={s.modalTitle}>Wochenvergleich</h2>
+               <button style={{...s.secBtn, width: 34, height: 34, padding: 0, display: "flex", alignItems: "center", justifyContent: "center"}} onClick={() => setShowComp(false)}>{IC.x}</button>
+            </div>
+
+            <div style={{display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 25 : 30}}>
+               {compSel.map(idx => {
+                  const group = Object.values(grouped)[idx];
+                  return (
+                    <div key={idx} style={{background: "#0D0D0F", border: "1px solid #1E1E24", borderRadius: 20, padding: 20}}>
+                       <div style={{fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 900, color: "#FFD166", marginBottom: 5}}>KW {group.wn}</div>
+                       <div style={{fontSize: 12, color: "#666", marginBottom: 20, display: "flex", alignItems: "center", gap: 6}}>
+                         {IC.calendar} {group.dateRange} ({group.workouts.length} Trainings)
+                       </div>
+                       
+                       <WeeklyReportMinimal workouts={group.workouts} isMobile={isMobile} />
+                    </div>
+                  );
+               })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WeeklyReportMinimal({workouts, isMobile}) {
+  const totalD = workouts.reduce((a,w)=>a+(parseInt(w.duration)||0),0);
+  const getVol = w => (w.exercises||[]).reduce((a,e) => e.isHiit ? a : a + (e.sets||[]).reduce((b,s)=>b+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0),0), 0);
+  const getKcal = w => (w.exercises||[]).reduce((a,e) => a + (e.sets||[]).reduce((b,s)=>b+(parseFloat(s.kcal)||0),0), 0);
+  const getKm = w => (w.exercises||[]).reduce((a,e) => a + (e.sets||[]).reduce((b,s)=>b+(parseFloat(s.km)||0),0), 0);
+  
+  const totalVol = workouts.reduce((a,w)=>a+getVol(w),0);
+  const totalKcal = workouts.reduce((a,w)=>a+getKcal(w),0);
+  const totalKm = workouts.reduce((a,w)=>a+getKm(w),0);
+  const totalSets = workouts.reduce((a,w)=>a+(w.exercises||[]).reduce((b,e)=>b+(e.isHiit ? 1 : (e.sets||[]).length),0),0);
+
+
+  const muscleDistribution = {};
+  workouts.forEach(w => {
+    (w.exercises||[]).forEach(e => {
+        // Find in library to get muscles if not stored
+        const libEx = (window._lib||[]).find(l => l.name === e.name);
+        (libEx?.muscles || []).forEach(m => muscleDistribution[m] = (muscleDistribution[m]||0) + 1);
+    });
+  });
+
+  return (
+    <div>
+      <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20}}>
+        <div style={{background: "#1A1A1F", padding: 12, borderRadius: 14, textAlign: "center", border: "1px solid #1E1E24"}}>
+          <div style={{fontSize: 18, fontWeight: 900, color: "#06D6A0"}}>{totalD} min</div>
+          <div style={{fontSize: 9, color: "#666", textTransform: "uppercase", marginTop: 4}}>Dauer</div>
+        </div>
+        <div style={{background: "#1A1A1F", padding: 12, borderRadius: 14, textAlign: "center", border: "1px solid #1E1E24"}}>
+          <div style={{fontSize: 18, fontWeight: 900, color: "#A78BFA"}}>{Math.round(totalVol/1000)}t</div>
+          <div style={{fontSize: 9, color: "#666", textTransform:"uppercase", marginTop: 4}}>Volumen</div>
+        </div>
+        {totalKcal > 0 && (
+          <div style={{background: "#1A1A1F", padding: 12, borderRadius: 14, textAlign: "center", border: "1px solid #FF6B6B33"}}>
+            <div style={{fontSize: 18, fontWeight: 900, color: "#FF6B6B"}}>{totalKcal}</div>
+            <div style={{fontSize: 9, color: "#666", textTransform: "uppercase", marginTop: 4}}>Kcal</div>
+          </div>
+        )}
+        {totalKm > 0 && (
+          <div style={{background: "#1A1A1F", padding: 12, borderRadius: 14, textAlign: "center", border: "1px solid #4CC9F033"}}>
+            <div style={{fontSize: 18, fontWeight: 900, color: "#4CC9F0"}}>{totalKm.toFixed(1)}km</div>
+            <div style={{fontSize: 9, color: "#666", textTransform: "uppercase", marginTop: 4}}>Distanz</div>
+          </div>
+        )}
+        <div style={{background: "#1A1A1F", padding: 12, borderRadius: 14, textAlign: "center", border: "1px solid #1E1E24"}}>
+          <div style={{fontSize: 18, fontWeight: 900, color: "#FF6B35"}}>{totalSets}</div>
+          <div style={{fontSize: 9, color: "#666", textTransform: "uppercase", marginTop: 4}}>Sätze</div>
+        </div>
+        <div style={{background: "#1A1A1F", padding: 12, borderRadius: 14, textAlign: "center", border: "1px solid #1E1E24"}}>
+          <div style={{fontSize: 18, fontWeight: 900, color: "#FFD166"}}>{workouts.length}</div>
+          <div style={{fontSize: 9, color: "#666", textTransform: "uppercase", marginTop: 4}}>Workouts</div>
+        </div>
+      </div>
+
+
+      <h4 style={{fontSize: 11, fontWeight: 900, color: "#444", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, borderTop: "1px solid #1E1E24", paddingTop: 15}}>Muskelfokus</h4>
+      <div style={{display: "flex", flexDirection: "column", gap: 8}}>
+        {Object.entries(muscleDistribution).sort((a,b)=>b[1]-a[1]).slice(0, 5).map(([m, count]) => (
+          <div key={m} style={{display: "flex", alignItems: "center", gap: 10}}>
+            <div style={{fontSize: 11, fontWeight: 800, color: "#aaa", width: 80}}>{m}</div>
+            <div style={{flex: 1, height: 6, background: "#1A1A1F", borderRadius: 3, overflow: "hidden"}}>
+               <div style={{height: "100%", background: MUSCLE_COLORS[m] || "#FF6B35", width: `${Math.min(100, (count/workouts.length)*100)}%`}} />
+            </div>
+          </div>
+        ))}
+        {Object.keys(muscleDistribution).length === 0 && <div style={{fontSize: 11, color: "#444"}}>Kein Fokus ermittelbar</div>}
+      </div>
+
+      <h4 style={{fontSize: 11, fontWeight: 900, color: "#444", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, marginTop: 25}}>Trainingsverlauf</h4>
+      <div style={{display: "flex", flexDirection: "column", gap: 6}}>
+        {workouts.map((w, wi) => (
+          <div key={wi} style={{fontSize: 11, background: "#080808", padding: "8px 12px", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+            <div style={{fontWeight: 700}}>{w.name}</div>
+            <div style={{color: "#666"}}>{new Date(w.date).toLocaleDateString("de-DE", {weekday: 'short'})}</div>
           </div>
         ))}
       </div>
@@ -2679,6 +3357,8 @@ function WeeklyReportModal({report, onClose, data}) {
     return a + (e.sets||[]).reduce((b,s)=>b+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0),0);
   }, 0);
   const totalVol = workouts.reduce((a,w)=>a+getVol(w),0);
+  const totalKcal = workouts.reduce((a,w)=>(w.exercises||[]).reduce((b,e)=>b+(e.sets||[]).reduce((c,s)=>c+(parseFloat(s.kcal)||0),0),a),0);
+  const totalKm = workouts.reduce((a,w)=>(w.exercises||[]).reduce((b,e)=>b+(e.sets||[]).reduce((c,s)=>c+(parseFloat(s.km)||0),0),a),0);
   const totalHiitSec = workouts.reduce((a,w)=>(w.exercises||[]).reduce((b,e)=>b+(e.isHiit?(e.duration||0):0),a),0);
   
   const muscleDistribution = {};
@@ -2744,19 +3424,22 @@ function WeeklyReportModal({report, onClose, data}) {
             })}
           </div>
 
-          <div style={{display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:8, marginBottom:24}}>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8, marginBottom:24}}>
             {[
               [totalW, "Workouts", "#FF6B35"],
               [`${totalD}m`, "Gesamtzeit", "#00D9C0"],
               [`${Math.round(totalVol/1000)}k`, "Volumen (kg)", "#A78BFA"],
+              [`${totalKcal}`, "Kcal", "#FF6B6B"],
+              [`${totalKm.toFixed(1)}k`, "Km", "#4CC9F0"],
               [`${Math.floor(totalHiitSec/60)}m`, "HIIT Zeit", "#FFD166"]
-            ].map(([v,l,c], i) => (
+            ].filter(x => x[0] !== "0" && x[0] !== "0.0k").map(([v,l,c], i) => (
               <div key={i} style={{background:"#161618", padding:"12px 4px", borderRadius:16, textAlign:"center", border:"1px solid #1E1E24"}}>
-                <div style={{fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:c}}>{v}</div>
-                <div style={{fontSize:8, color:"#666", marginTop:4, textTransform:"uppercase", fontWeight:700}}>{l}</div>
+                <div style={{fontFamily:"'Syne',sans-serif", fontSize: 16, fontWeight: 800, color:c}}>{v}</div>
+                <div style={{fontSize: 8, color:"#666", marginTop: 4, textTransform:"uppercase", fontWeight: 700}}>{l}</div>
               </div>
             ))}
           </div>
+
 
           <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:24}}>
              <div>
@@ -3705,6 +4388,8 @@ function ExerciseFormModal({exercise,onSave,onClose}){
   const [muscles,setMuscles]=useState(exercise?.muscles||[]);
   const [types,setTypes]=useState(exercise?.types||[]);
   const [equipment,setEquipment]=useState(exercise?.equipment||[]);
+  const [trackGPS,setTrackGPS]=useState(exercise?.trackGPS||false);
+
   const [hiitEnabled, setHiitEnabled] = useState(exercise?.hiitTimer?.enabled || false);
   const [hiitDuration, setHiitDuration] = useState(exercise?.hiitTimer?.duration || 30);
   const [thumbnail,setThumbnail]=useState(exercise?.thumbnail||null);
@@ -3748,7 +4433,8 @@ function ExerciseFormModal({exercise,onSave,onClose}){
 
   const save=()=>{
     if(!name.trim())return;
-    onSave({name:name.trim(),description:desc,sets,reps,weight,kcal,km,incline,tempo,trackSets,trackReps,trackWeight,trackKcal,trackKm,trackIncline,trackTempo,muscles,types,equipment,thumbnail, hiitTimer: { enabled: hiitEnabled, duration: parseInt(hiitDuration) || 30 }});
+    onSave({name:name.trim(),description:desc,sets,reps,weight,kcal,km,incline,tempo,trackSets,trackReps,trackWeight,trackKcal,trackKm,trackIncline,trackTempo,trackGPS,muscles,types,equipment,thumbnail, hiitTimer: { enabled: hiitEnabled, duration: parseInt(hiitDuration) || 30 }});
+
   };
 
 
@@ -3770,8 +4456,10 @@ function ExerciseFormModal({exercise,onSave,onClose}){
             ["kcal",trackKcal,setTrackKcal,"#FF6B6B"],
             ["km",trackKm,setTrackKm,"#4CC9F0"],
             ["Incline",trackIncline,setTrackIncline,"#FFD166"],
-            ["Tempo",trackTempo,setTrackTempo,"#EF476F"]
+            ["km/h",trackTempo,setTrackTempo,"#EF476F"],
+            ["GPS Track",trackGPS,setTrackGPS,"#06D6A0"]
           ].map(([label,val,set,color])=>(
+
 
             <div key={label} onClick={()=>set(!val)} style={{background:val?color+"15":"#1A1A1F",border:`1px solid ${val?color:"#2A2A30"}`,borderRadius:9,padding:"8px 4px",textAlign:"center",cursor:"pointer",transition:"all 0.2s"}}>
               <div style={{fontSize:9,fontWeight:700,color:val?color:"#666",marginBottom:4}}>{label}</div>
@@ -3790,7 +4478,8 @@ function ExerciseFormModal({exercise,onSave,onClose}){
           <div style={{...s.fg,opacity:trackKcal?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#FF6B6B"}}>kcal</label><input style={{...s.inp,padding:"8px"}} type="number" value={kcal} onChange={e=>setKcal(e.target.value)} placeholder="0" disabled={!trackKcal}/></div>
           <div style={{...s.fg,opacity:trackKm?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#4CC9F0"}}>km</label><input style={{...s.inp,padding:"8px"}} type="number" value={km} onChange={e=>setKm(e.target.value)} placeholder="0" disabled={!trackKm}/></div>
           <div style={{...s.fg,opacity:trackIncline?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#FFD166"}}>Steig.</label><input style={{...s.inp,padding:"8px"}} type="text" value={incline} onChange={e=>setIncline(e.target.value)} placeholder="%" disabled={!trackIncline}/></div>
-          <div style={{...s.fg,opacity:trackTempo?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#EF476F"}}>Tempo</label><input style={{...s.inp,padding:"8px"}} type="text" value={tempo} onChange={e=>setTempo(e.target.value)} placeholder="T" disabled={!trackTempo}/></div>
+          <div style={{...s.fg,opacity:trackTempo?1:0.3}}><label style={{...s.lbl,fontSize:10,color:"#EF476F"}}>km/h</label><input style={{...s.inp,padding:"8px"}} type="text" value={tempo} onChange={e=>setTempo(e.target.value)} placeholder="km/h" disabled={!trackTempo}/></div>
+
         </div>
 
         {/* HIIT Timer Config */}
@@ -4986,8 +5675,7 @@ const css=`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;8
     .pageTitle { font-size: 24px !important; }
   }
   .hiit-glow {
-    filter: drop-shadow(0 0 5px rgba(255, 209, 102, 0.6));
-    animation: hiit-pulse 2s infinite ease-in-out;
+    filter: drop-shadow(0 0 5px rgba(255, 209, 102, 0.4));
     border-color: #FFD166 !important;
   }
   @keyframes hiit-pulse {
