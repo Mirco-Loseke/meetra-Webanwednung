@@ -11,7 +11,10 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+
   try {
     const firebaseConfig = {
       apiKey: "AIzaSyBHcrBR0fWYVDkdWWAoVfvMEaN0CeoB52M",
@@ -1818,7 +1821,23 @@ function Plans({data,setData,onNew,onEdit,notify}){
     <div style={s.newPlanCard} onClick={onNew} className="planCard"><div style={{color:"#444",display:"flex"}}>{IC.plus}</div><span style={{color:"#666",fontSize:13}}>Neuen Plan erstellen</span></div></div>
   </div>);}
 
+const formatPace = (kmh) => {
+  if (!kmh || isNaN(kmh) || kmh <= 0.1) return "-:--";
+  const minsPerKm = 60 / kmh;
+  const m = Math.floor(minsPerKm);
+  const s = Math.floor((minsPerKm - m) * 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const calcDist = (lat1, lon1, lat2, lon2) => {
+  const p = 0.017453292519943295; const c = Math.cos;
+  const a = 0.5 - c((lat2 - lat1) * p)/2 + c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p))/2;
+  return 12742 * Math.asin(Math.sqrt(a));
+};
+
 function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setActiveWorkout,isMobile}){
+
+
   const [step,setStep]=useState(activeWorkout?.step || 1);
   const [planId,setPlanId]=useState(activeWorkout?.planId || data.plans[0]?.id || null);
   const [date,setDate]=useState(activeWorkout?.date || todayStr());
@@ -1845,8 +1864,16 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
   const [selectedHiitVal, setSelectedHiitVal] = useState(null);
   const [hiitStatus, setHiitStatus] = useState(activeWorkout?.hiitStatus || {}); // Tracks actual seconds done per ex
   const [voiceVolume, setVoiceVolume] = useState(() => ls("voice_volume", 0.8));
+  const [gpsData, setGpsData] = useState(activeWorkout?.gpsData || {});
+  const mapRef = useRef(null);
+  const mapInst = useRef(null);
+  const polyRef = useRef(null);
+  const watchId = useRef(null);
+  const timerRef = useRef(timer);
+
   const workerRef = useRef(null);
   const wakeLockRef = useRef(null);
+
 
   useEffect(() => {
     localStorage.setItem("ff_voice_volume", JSON.stringify(voiceVolume));
@@ -1901,6 +1928,103 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
     }
   }, [running]);
 
+  useEffect(() => { timerRef.current = timer; }, [timer]);
+
+  useEffect(() => {
+    if (step === 2 && running && exercises[curEx]?.trackGPS) {
+      if ('geolocation' in navigator) {
+        if (!gpsData[curEx]) setGpsData(p => ({...p, [curEx]: { path: [], dist: 0, lastPos: null, maxSpeed: 0 }}));
+        watchId.current = navigator.geolocation.watchPosition((pos) => {
+          const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+          const t = Date.now();
+          const alt = pos.coords.altitude || 0;
+          let currentSpeed = pos.coords.speed ? (pos.coords.speed * 3.6) : null;
+
+          setGpsData(prev => {
+            const current = prev[curEx] || { path: [], dist: 0, lastPos: null, maxSpeed: 0 };
+            let newDist = current.dist;
+            if (current.lastPos) {
+              const stepDist = calcDist(current.lastPos.lat, current.lastPos.lng, lat, lng);
+              newDist += stepDist;
+              if (currentSpeed === null) {
+                const dtHours = (t - current.lastPos.t) / 3600000;
+                currentSpeed = dtHours > 0 ? (stepDist / dtHours) : 0;
+              }
+            } else {
+              if (currentSpeed === null) currentSpeed = 0;
+            }
+            const maxSpeed = Math.max(current.maxSpeed || 0, currentSpeed);
+            const newPoint = { lat, lng, t, speed: currentSpeed, alt };
+            const newPath = [...current.path, newPoint];
+
+            
+            if (mapInst.current) {
+              mapInst.current.setView([lat, lng], 16);
+              if (polyRef.current) polyRef.current.setLatLngs(newPath);
+              else polyRef.current = window.L.polyline(newPath, {color: '#06D6A0', weight: 5}).addTo(mapInst.current);
+              
+              if (!mapInst.current.posMarker) {
+                 mapInst.current.posMarker = window.L.circleMarker([lat, lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#05b586', fillOpacity: 1 }).addTo(mapInst.current);
+              } else {
+                 mapInst.current.posMarker.setLatLng([lat, lng]);
+              }
+            }
+            
+            setSets(old => {
+              const ns = JSON.parse(JSON.stringify(old));
+              if (ns[curEx] && ns[curEx][0]) {
+                ns[curEx][0].km = newDist.toFixed(2);
+                const tz = timerRef.current || 1;
+                ns[curEx][0].tempo = ((newDist / tz) * 3600).toFixed(1);
+                ns[curEx][0].kcal = Math.round(newDist * 70); // simplistic avg kcal calc
+                ns[curEx][0].routePath = newPath;
+                ns[curEx][0].currentSpeed = currentSpeed.toFixed(1);
+                ns[curEx][0].maxSpeed = maxSpeed.toFixed(1);
+              }
+              return ns;
+            });
+
+            return {...prev, [curEx]: {...current, path: newPath, dist: newDist, lastPos: newPoint, maxSpeed}};
+
+          });
+        }, (err) => console.log('GPS err:', err), { enableHighAccuracy: true });
+      }
+    } else {
+      if (watchId.current) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; }
+    }
+    return () => { if (watchId.current) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; } };
+  }, [step, running, curEx]);
+
+  useEffect(() => {
+    if (step === 2 && exercises[curEx]?.trackGPS && mapRef.current) {
+      if (!mapInst.current) {
+        mapInst.current = window.L.map(mapRef.current).setView([51.1657, 10.4515], 14);
+        window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; OSM'
+        }).addTo(mapInst.current);
+        const p = gpsData[curEx]?.path || [];
+        if (p.length > 0) {
+          polyRef.current = window.L.polyline(p, {color: '#06D6A0', weight: 5}).addTo(mapInst.current);
+          mapInst.current.fitBounds(polyRef.current.getBounds(), {padding: [20,20]});
+        } else {
+          mapInst.current.on('locationfound', function(e) {
+            if (!mapInst.current.posMarker) {
+              mapInst.current.posMarker = window.L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#05b586', fillOpacity: 1 }).addTo(mapInst.current);
+            } else {
+              mapInst.current.posMarker.setLatLng(e.latlng);
+            }
+          });
+          mapInst.current.on('locationerror', function(e) {
+            alert("Achtung: Dein Safari-Browser blockiert das GPS! Bitte erlaube den Standort in den iPhone-Einstellungen, damit die Karte zu dir springt.");
+          });
+          mapInst.current.locate({setView: true, maxZoom: 16});
+        }
+      }
+    } else {
+      if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; polyRef.current = null; }
+    }
+  }, [step, curEx]);
+
   
   useEffect(() => {
     if (step > 1) {
@@ -1921,8 +2045,9 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           return { ...exObj, photo: libMatch.thumbnail, description: libMatch.description, hiitTimer: libMatch.hiitTimer, 
             trackSets: exObj.trackSets ?? libMatch.trackSets ?? true, trackReps: exObj.trackReps ?? libMatch.trackReps ?? true,
             trackWeight: exObj.trackWeight ?? libMatch.trackWeight ?? true, trackKcal: libMatch.trackKcal, trackKm: libMatch.trackKm,
-            trackIncline: libMatch.trackIncline, trackTempo: libMatch.trackTempo,
+            trackIncline: libMatch.trackIncline, trackTempo: libMatch.trackTempo, trackGPS: libMatch.trackGPS,
             sets: libMatch.sets || exObj.sets || 1, reps: libMatch.reps || exObj.reps || "", weight: libMatch.weight || exObj.weight || "",
+
             kcal: libMatch.kcal || "", km: libMatch.km || "", incline: libMatch.incline || "", tempo: libMatch.tempo || "" };
 
         }
@@ -2287,9 +2412,14 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
             ns[i] = Array.from({length:count}, ()=>({...setObj}));
           });
 
+          if (exercises.some(e => e.trackGPS) && 'geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(() => {}, () => {});
+          }
+
           setSets(ns); setStep(2); setRunning(true); setTimer(0); setStartTime(new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}));
           lastTickTimeRef.current = Date.now();
           if (hiitMode && hiitDurations[0]) {
+
             setExTimer(hiitDurations[0]);
             setExTimerActive(true);
             speak("3. 2. 1. Training startet", voiceVolume);
@@ -2380,7 +2510,10 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
 
       {step===2&&<div className="fadeIn">
         <div style={{marginBottom:18, display:"flex", gap:10}}>
-          <div style={{flex:1, padding:"10px 14px", background:"#0D0D0F", borderRadius:16, border:"1px solid #1E1E24", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer"}} onClick={()=>setRunning(r=>!r)}>
+          <div style={{flex:1, padding:"10px 14px", background:"#0D0D0F", borderRadius:16, border:"1px solid #1E1E24", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer"}} onClick={()=>{
+            if (!running && exercises[curEx]?.trackGPS && 'geolocation' in navigator) navigator.geolocation.getCurrentPosition(() => {}, () => {});
+            setRunning(r=>!r);
+          }}>
             <div style={{display:"flex", alignItems:"center", gap:8}}>
               <div style={{fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#FF6B35", letterSpacing:1}}>{fmtTimer(timer)}</div>
               <div style={{color:"#FF6B35", display:"flex"}}>{running ? <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}</div>
@@ -2416,9 +2549,14 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           )}
           <div style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile ? 22 : 26, fontWeight:800,color:"#fff",marginBottom:12}}>{curExData.name}</div>
           <div style={{width:"100%",height: isMobile ? 180 : 220, borderRadius:20,overflow:"hidden",marginBottom:16,background:"#0D0D0F",border:"1px solid #1E1E24",position:"relative", boxShadow: "0 10px 30px rgba(0,0,0,0.3)"}}>
-            {curExData.photo?<img src={curExData.photo} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#333"}}>{IC.dumbbell}</div>}
-            <button style={{position:"absolute",bottom:12,right:12,background:"rgba(255,107,33,0.9)",borderRadius:"50%",width:36,height:36,border:"none",color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800}} onClick={()=>setShowInfo(true)}>i</button>
+            {curExData.trackGPS ? (
+              <div ref={mapRef} style={{width:"100%", height:"100%"}}></div>
+            ) : (
+              curExData.photo?<img src={curExData.photo} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",color:"#333"}}>{IC.dumbbell}</div>
+            )}
+            <button style={{position:"absolute",bottom:12,right:12,background:"rgba(255,107,33,0.9)",borderRadius:"50%",width:36,height:36,border:"none",color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, zIndex: 1000}} onClick={()=>setShowInfo(true)}>i</button>
           </div>
+
 
           {showInfo && (
             <div style={s.overlay2} onClick={()=>setShowInfo(false)}>
@@ -2430,8 +2568,39 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
             </div>
           )}
 
-          {!hiitMode && (
+          {curExData.trackGPS && (
+            <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10, marginBottom:16}}>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Distanz</div>
+                <div style={{fontSize:20, color:"#4CC9F0", fontWeight:900}}>{curSets[0]?.km || "0.00"} <span style={{fontSize:12}}>km</span></div>
+              </div>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Pace (Ø)</div>
+                <div style={{fontSize:20, color:"#A78BFA", fontWeight:900}}>{formatPace(parseFloat(curSets[0]?.tempo || 0))} <span style={{fontSize:12}}>/km</span></div>
+              </div>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Live Pace</div>
+                <div style={{fontSize:20, color:"#06D6A0", fontWeight:900}}>{formatPace(parseFloat(curSets[0]?.currentSpeed || 0))} <span style={{fontSize:12}}>/km</span></div>
+              </div>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Tempo (Ø)</div>
+                <div style={{fontSize:20, color:"#EF476F", fontWeight:900}}>{curSets[0]?.tempo || "0.0"} <span style={{fontSize:12}}>km/h</span></div>
+              </div>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Max Speed</div>
+                <div style={{fontSize:20, color:"#FFD166", fontWeight:900}}>{curSets[0]?.maxSpeed || "0.0"} <span style={{fontSize:12}}>km/h</span></div>
+              </div>
+              <div style={{background:"#0D0D0F", border:"1px solid #1A1A1F", borderRadius:14, padding:12, textAlign:"center"}}>
+                <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", marginBottom:4}}>Kalorien</div>
+                <div style={{fontSize:20, color:"#FF6B6B", fontWeight:900}}>{curSets[0]?.kcal || "0"} <span style={{fontSize:12}}>kcal</span></div>
+              </div>
+            </div>
+          )}
+
+
+          {!hiitMode && !curExData.trackGPS && (
              <div style={{marginBottom:15,borderBottom:"1px solid #1E1E24",paddingBottom:10,display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:800,color:"#fff"}}>
+
                 <span>
                    Satz <span>{(() => {
                       const tSetsNum = parseInt(totalSets) || 1;
@@ -2445,8 +2614,9 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
              </div>
           )}
 
-          {curSets.length > 0 && !hiitMode && (
+          {curSets.length > 0 && !hiitMode && !curExData.trackGPS && (
             <>
+
               {!repeatRounds ? (
                 // Normal Mode: Show all sets
                 curSets.map((set, si) => (
@@ -2631,7 +2801,102 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
   </div>);
 }
 
+function RouteMap({ path }) {
+  const mRef = useRef(null);
+  useEffect(() => {
+    if (mRef.current && path && path.length > 0) {
+      if (!window.L) return;
+      const map = window.L.map(mRef.current, { zoomControl: false, dragging: false, scrollWheelZoom: false }).setView(path[0], 14);
+      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+      const bounds = window.L.polyline(path, {color: '#06D6A0', weight: 4}).addTo(map).getBounds();
+      map.fitBounds(bounds, { padding: [10,10] });
+      return () => map.remove();
+    }
+  }, [path]);
+  return <div ref={mRef} style={{width: "100%", height: 160, borderRadius: 12, marginTop: 12, background: "#111", border: "1px solid #1A1A1F"}}></div>;
+}
+
+function GpsAnalytics({ path }) {
+  if (!path || path.length < 2 || !path[0].t) return null;
+
+  let splits = [];
+  let currentSplitDist = 0;
+  let currentSplitIndex = 1;
+  let currentSplitStartTime = path[0].t;
+  let maxSpeed = 0;
+  let standingMs = 0;
+
+  for (let i = 1; i < path.length; i++) {
+    const p1 = path[i-1];
+    const p2 = path[i];
+    const d = calcDist(p1.lat, p1.lng, p2.lat, p2.lng);
+    const dtMs = p2.t - p1.t;
+    if (dtMs <= 0) continue;
+    
+    currentSplitDist += d;
+    if (p2.speed < 2) standingMs += dtMs;
+    if (p2.speed > maxSpeed) maxSpeed = p2.speed;
+
+    if (currentSplitDist >= 1.0) {
+       const splitTimeMs = p2.t - currentSplitStartTime;
+       const splitSpeedKmh = 1 / (splitTimeMs / 3600000);
+       splits.push({ km: currentSplitIndex, timeMs: splitTimeMs, speed: splitSpeedKmh });
+       
+       currentSplitIndex++;
+       currentSplitDist -= 1.0;
+       currentSplitStartTime = p2.t;
+    }
+  }
+
+  const pointsToSample = 40;
+  const step = Math.max(1, Math.floor(path.length / pointsToSample));
+  const curvePoints = [];
+  for (let i = 0; i < path.length; i += step) curvePoints.push(path[i].speed || 0);
+  const maxCurveSpeed = Math.max(...curvePoints, 1);
+
+  return (
+    <div style={{marginTop: 15, background: "#0D0D0F", padding: 15, borderRadius: 14, border: "1px solid #1A1A1F"}}>
+      <h4 style={{margin: "0 0 10px", fontSize: 13, color: "#fff"}}>📊 KI-Laufanalyse</h4>
+      
+      <div style={{height: 60, display: "flex", alignItems: "flex-end", gap: 2, marginBottom: 20}}>
+        {curvePoints.map((sp, i) => (
+           <div key={i} style={{flex: 1, backgroundColor: "#06D6A0", opacity: 0.8, borderRadius: "2px 2px 0 0", height: `${Math.max(5, (sp / maxCurveSpeed) * 100)}%`}}></div>
+        ))}
+      </div>
+
+      <div style={{display: "flex", gap: 10, marginBottom: 15, flexWrap: "wrap"}}>
+        <div style={{flex: 1, minWidth: 100, background: "#1A1A1F", padding: 10, borderRadius: 10}}>
+           <div style={{fontSize: 9, color: "#888", textTransform: "uppercase"}}>Peaks (Max Tempo)</div>
+           <div style={{fontSize: 14, fontWeight: "bold", color: "#FFD166"}}>{maxSpeed.toFixed(1)} <span style={{fontSize: 10}}>km/h</span></div>
+        </div>
+        <div style={{flex: 1, minWidth: 100, background: "#1A1A1F", padding: 10, borderRadius: 10}}>
+           <div style={{fontSize: 9, color: "#888", textTransform: "uppercase"}}>Standzeit / Pause</div>
+           <div style={{fontSize: 14, fontWeight: "bold", color: "#EF476F"}}>{Math.round(standingMs/1000)}s</div>
+        </div>
+      </div>
+
+      {splits.length > 0 && (
+        <div style={{background: "#1A1A1F", borderRadius: 10, overflow: "hidden"}}>
+          <div style={{display: "flex", padding: "8px 12px", background: "#222", fontSize: 10, color: "#888", fontWeight: "bold"}}>
+             <div style={{width: 50}}>RUNDE</div>
+             <div style={{flex: 1}}>PACE</div>
+             <div style={{width: 60, textAlign: "right"}}>Ø KM/H</div>
+          </div>
+          {splits.map((sp, i) => (
+             <div key={i} style={{display: "flex", padding: "8px 12px", fontSize: 13, borderTop: "1px solid #2A2A30", color: "#ddd"}}>
+               <div style={{width: 50, fontWeight: "bold", color: "#06D6A0"}}>km {sp.km}</div>
+               <div style={{flex: 1}}>{formatPace(sp.speed)} <span style={{fontSize:10, color:"#666"}}>/km</span></div>
+               <div style={{width: 60, textAlign: "right"}}>{sp.speed.toFixed(1)}</div>
+             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isMobile}){
+
   const sorted=[...data.workouts].sort((a,b)=>new Date(b.date)-new Date(a.date));
   const del=id=>{setData(d=>({...d,workouts:d.workouts.filter(w=>w.id!==id)}));setSelWO(null);notify("Training gelöscht");};
   const [compMode, setCompMode] = useState(false);
@@ -2780,8 +3045,15 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                       {tt && <span style={{background:"#1A1A1F",borderRadius:9,padding:"8px",fontSize:12,textAlign:"center",color:"#EF476F",fontWeight:700}}>{set.tempo || "-"}</span>}
                     </div>
                   ))}
+                  {ex.sets && ex.sets[0] && ex.sets[0].routePath && ex.sets[0].routePath.length > 0 && (
+                    <>
+                      <RouteMap path={ex.sets[0].routePath} />
+                      <GpsAnalytics path={ex.sets[0].routePath} />
+                    </>
+                  )}
                 </div>
               );
+
             })}
           </div>
           
@@ -4251,6 +4523,8 @@ function ExerciseFormModal({exercise,onSave,onClose}){
   const [muscles,setMuscles]=useState(exercise?.muscles||[]);
   const [types,setTypes]=useState(exercise?.types||[]);
   const [equipment,setEquipment]=useState(exercise?.equipment||[]);
+  const [trackGPS,setTrackGPS]=useState(exercise?.trackGPS||false);
+
   const [hiitEnabled, setHiitEnabled] = useState(exercise?.hiitTimer?.enabled || false);
   const [hiitDuration, setHiitDuration] = useState(exercise?.hiitTimer?.duration || 30);
   const [thumbnail,setThumbnail]=useState(exercise?.thumbnail||null);
@@ -4294,7 +4568,8 @@ function ExerciseFormModal({exercise,onSave,onClose}){
 
   const save=()=>{
     if(!name.trim())return;
-    onSave({name:name.trim(),description:desc,sets,reps,weight,kcal,km,incline,tempo,trackSets,trackReps,trackWeight,trackKcal,trackKm,trackIncline,trackTempo,muscles,types,equipment,thumbnail, hiitTimer: { enabled: hiitEnabled, duration: parseInt(hiitDuration) || 30 }});
+    onSave({name:name.trim(),description:desc,sets,reps,weight,kcal,km,incline,tempo,trackSets,trackReps,trackWeight,trackKcal,trackKm,trackIncline,trackTempo,trackGPS,muscles,types,equipment,thumbnail, hiitTimer: { enabled: hiitEnabled, duration: parseInt(hiitDuration) || 30 }});
+
   };
 
 
@@ -4316,9 +4591,10 @@ function ExerciseFormModal({exercise,onSave,onClose}){
             ["kcal",trackKcal,setTrackKcal,"#FF6B6B"],
             ["km",trackKm,setTrackKm,"#4CC9F0"],
             ["Incline",trackIncline,setTrackIncline,"#FFD166"],
-            ["km/h",trackTempo,setTrackTempo,"#EF476F"]
-
+            ["km/h",trackTempo,setTrackTempo,"#EF476F"],
+            ["GPS Track",trackGPS,setTrackGPS,"#06D6A0"]
           ].map(([label,val,set,color])=>(
+
 
             <div key={label} onClick={()=>set(!val)} style={{background:val?color+"15":"#1A1A1F",border:`1px solid ${val?color:"#2A2A30"}`,borderRadius:9,padding:"8px 4px",textAlign:"center",cursor:"pointer",transition:"all 0.2s"}}>
               <div style={{fontSize:9,fontWeight:700,color:val?color:"#666",marginBottom:4}}>{label}</div>
