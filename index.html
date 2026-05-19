@@ -72,9 +72,9 @@
   }
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#0D0D0F;color:#F0EDE8;font-family:'DM Sans',sans-serif;}
@@ -373,6 +373,10 @@ function HiitTimer({duration, onFinish, isMobile, controlledTime, controlledActi
   const active = controlledActive !== undefined ? controlledActive : internalActive;
 
   useEffect(() => {
+    setInternalTime(duration);
+  }, [duration]);
+
+  useEffect(() => {
     if (controlledTime !== undefined) return; // Prop-driven, skip internal logic
     if(active && timeLeft > 0){
       itv.current = setInterval(() => {
@@ -410,7 +414,7 @@ function HiitTimer({duration, onFinish, isMobile, controlledTime, controlledActi
     <div className="hiit-glow" style={{background:"#111114", border:"2px solid #FFD166", borderRadius:24, padding: isMobile ? 16 : 24, display:"flex", flexDirection:"column", gap: isMobile ? 4 : 14, width:"100%", textAlign:"center", marginBottom: 12}}>
       <div style={{fontSize: 9, fontWeight: 900, color: "#FFD166", textTransform:"uppercase", letterSpacing: 2, opacity: 0.7}}>HIIT Interval</div>
       <div style={{display:"flex", justifyContent:"center", alignItems:"baseline", gap:6, margin: "0"}}>
-        <div style={{fontFamily:"'Syne',sans-serif", fontSize: isMobile ? 54 : 64, fontWeight:800, color:"#FFD166", letterSpacing:-2, textShadow: "0 0 15px rgba(255, 209, 102, 0.3)", minWidth: isMobile ? "1.5em" : "auto"}}>
+        <div style={{fontFamily:"'DM Sans',sans-serif", fontSize: isMobile ? 54 : 64, fontWeight:800, color:"#FFD166", letterSpacing:-2, textShadow: "0 0 15px rgba(255, 209, 102, 0.3)", minWidth: isMobile ? "1.5em" : "auto"}}>
           {timeLeft}
         </div>
         <div style={{fontSize:14, fontWeight:800, color:"#FFD166", opacity: 0.5}}>SEK</div>
@@ -485,7 +489,7 @@ function BarChart({bars,color="#FF6B35",height=90}){
     </svg>
   );
 }
-function DonutChart({value,max,color="#FF6B35",size=80,label=""}){const r=30,circ=2*Math.PI*r,pct=Math.min(value/Math.max(max,1),1),dash=pct*circ;return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><svg width={size} height={size} viewBox="0 0 80 80"><circle cx="40" cy="40" r={r} fill="none" stroke="#1E1E24" strokeWidth="8"/><circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="8" strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 40 40)" style={{transition:"stroke-dasharray 0.5s"}}/><text x="40" y="44" textAnchor="middle" fontSize="12" fontWeight="800" fill="#F0EDE8" fontFamily="Syne,sans-serif">{Math.round(pct*100)}%</text></svg>{label&&<div style={{fontSize:10,color:"#666",textAlign:"center",maxWidth:70}}>{label}</div>}</div>);}
+function DonutChart({value,max,color="#FF6B35",size=80,label=""}){const r=30,circ=2*Math.PI*r,pct=Math.min(value/Math.max(max,1),1),dash=pct*circ;return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><svg width={size} height={size} viewBox="0 0 80 80"><circle cx="40" cy="40" r={r} fill="none" stroke="#1E1E24" strokeWidth="8"/><circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="8" strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 40 40)" style={{transition:"stroke-dasharray 0.5s"}}/><text x="40" y="44" textAnchor="middle" fontSize="12" fontWeight="800" fill="#F0EDE8" fontFamily="DM Sans,sans-serif">{Math.round(pct*100)}%</text></svg>{label&&<div style={{fontSize:10,color:"#666",textAlign:"center",maxWidth:70}}>{label}</div>}</div>);}
 function NutritionViewIcon({favFoods}){
   return(
     <div style={{position:"relative",display:"flex"}}>
@@ -538,7 +542,7 @@ function FitForge(){
   // Global Timer Loop for the active workout
   useEffect(() => {
     let itv;
-    if (activeWorkout && activeWorkout.running && activeWorkout.step === 2) {
+    if (activeWorkout && activeWorkout.running && activeWorkout.step === 2 && view !== "log") {
       const start = Date.now() - (activeWorkout.timer * 1000);
       itv = setInterval(() => {
         const nextSecs = Math.floor((Date.now() - start) / 1000);
@@ -550,7 +554,7 @@ function FitForge(){
       }, 1000);
     }
     return () => clearInterval(itv);
-  }, [activeWorkout?.running, activeWorkout?.step]);
+  }, [activeWorkout?.running, activeWorkout?.step, view]);
   const hasCachedData = data !== defaultData || library.length > 0 || Object.keys(prs).length > 2 || Object.keys(nutrition).length > 0;
 
   const syncCloud = async () => {
@@ -812,7 +816,7 @@ function FitForge(){
   if(showLoadingUI) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0D0D0F",flexDirection:"column",gap:16}}>
       <div style={{width:44,height:44,border:"3px solid #FF6B35",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-      <div style={{color:"#F0EDE8",fontSize:16,fontWeight:700,fontFamily:"'Syne',sans-serif",letterSpacing:"0.5px"}}>FitForge wird geladen...</div>
+      <div style={{color:"#F0EDE8",fontSize:16,fontWeight:700,fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.5px"}}>FitForge wird geladen...</div>
       <div style={{color:"#444",fontSize:12,fontFamily:"'DM Sans',sans-serif"}}>Sichere Verbindung wird hergestellt...</div>
       <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
     </div>
@@ -832,7 +836,7 @@ function FitForge(){
   if(!loaded && !hasCachedData && authUser) return (
      <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0D0D0F",flexDirection:"column",gap:16}}>
         <div style={{width:44,height:44,border:"3px solid #FF6B35",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-        <div style={{color:"#F0EDE8",fontSize:16,fontWeight:700,fontFamily:"'Syne',sans-serif"}}>Synchronisierung...</div>
+        <div style={{color:"#F0EDE8",fontSize:16,fontWeight:700,fontFamily:"'DM Sans',sans-serif"}}>Synchronisierung...</div>
         <div style={{color:"#444",fontSize:12}}>Deine Daten werden abgerufen</div>
      </div>
   );
@@ -956,14 +960,14 @@ function FitForge(){
               {profileOpen&&<div style={{...s.dropdown,width:250}} className="dropIn" onClick={e=>e.stopPropagation()}>
                 <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 18px"}}>
                   <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#FF6B35,#FF8C60)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
-                    {user.avatar?<img src={user.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<span style={{fontFamily:"'Syne',sans-serif",fontSize:15,fontWeight:800,color:"#fff"}}>{getInitials(user)}</span>}
+                    {user.avatar?<img src={user.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:800,color:"#fff"}}>{getInitials(user)}</span>}
                   </div>
-                  <div style={{minWidth:0}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14}}>{user.firstName||user.lastName?`${user.firstName} ${user.lastName}`.trim():"Kein Name"}</div><div style={{color:"#666",fontSize:11,marginTop:2}}>{user.email||"Keine E-Mail"}</div><div style={{color:"#FF6B35",fontSize:10,fontWeight:600,marginTop:2}}>{user.goal}</div></div>
+                  <div style={{minWidth:0}}><div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:14}}>{user.firstName||user.lastName?`${user.firstName} ${user.lastName}`.trim():"Kein Name"}</div><div style={{color:"#666",fontSize:11,marginTop:2}}>{user.email||"Keine E-Mail"}</div><div style={{color:"#FF6B35",fontSize:10,fontWeight:600,marginTop:2}}>{user.goal}</div></div>
                 </div>
                 <div style={{height:1,background:"#1E1E24",margin:"0 16px"}}/>
                 <div style={{display:"flex",padding:"12px 16px",gap:14}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:2}}><span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14}}>{data.workouts.length}</span><span style={{color:"#666",fontSize:10}}>Trainings</span></div>
-                  {user.weight&&<div style={{display:"flex",flexDirection:"column",gap:2}}><span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14}}>{user.weight}kg</span><span style={{color:"#666",fontSize:10}}>Gewicht</span></div>}
+                  <div style={{display:"flex",flexDirection:"column",gap:2}}><span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:14}}>{data.workouts.length}</span><span style={{color:"#666",fontSize:10}}>Trainings</span></div>
+                  {user.weight&&<div style={{display:"flex",flexDirection:"column",gap:2}}><span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:14}}>{user.weight}kg</span><span style={{color:"#666",fontSize:10}}>Gewicht</span></div>}
                 </div>
                 <div style={{height:1,background:"#1E1E24",margin:"0 16px"}}/>
                 <button className="profEditBtn" style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"transparent",border:"none",color:"#aaa",cursor:"pointer",padding:"12px 16px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}} onClick={()=>{setProfileOpen(false);setView("profile");}}>
@@ -1025,7 +1029,7 @@ function FitForge(){
            </div>
            <div>
              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-               <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"#FF6B35",letterSpacing:0.5}}>{fmtTimer(activeWorkout.timer)}</span>
+               <span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:18,color:"#FF6B35",letterSpacing:0.5}}>{fmtTimer(activeWorkout.timer)}</span>
                <span style={{fontSize:10,background:"#FF6B3520",color:"#FF6B35",padding:"1px 6px",borderRadius:6,fontWeight:800}}>{activeWorkout.running?"AKTIV":"PAUSE"}</span>
              </div>
              <div style={{fontSize:11,color:"#F0EDE8",fontWeight:700,maxWidth:140,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
@@ -1054,7 +1058,7 @@ function Dashboard({data,user,onLog,onView,totalVol,thisWeek,todayNut,isMobile})
       <div style={{position:"absolute",inset:0,background:"linear-gradient(120deg,rgba(0,0,0,0.85) 0%,rgba(0,0,0,0.3) 100%)"}}/>
       <div style={{position:"absolute",inset:0,padding: isMobile ? 24 : 40,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
         <p style={{color:"rgba(255,255,255,0.7)",margin:"0 0 8px",fontSize: isMobile ? 12 : 14}}>{user.firstName?`Bereit, ${user.firstName}? 🔥`:"Guten Tag 👋"}</p>
-        <h1 style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile ? 28 : 40,fontWeight:800,margin:"0 0 14px",lineHeight:1.1,color:"#fff"}}>Bereit zum<br/>Trainieren?</h1>
+        <h1 style={{fontFamily:"'DM Sans',sans-serif",fontSize: isMobile ? 28 : 40,fontWeight:800,margin:"0 0 14px",lineHeight:1.1,color:"#fff"}}>Bereit zum<br/>Trainieren?</h1>
         {todayPlan&&<div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.12)",backdropFilter:"blur(12px)",borderRadius:20,padding:"6px 14px",fontSize: isMobile ? 11 : 13,color:"#fff",marginBottom:18,width:"fit-content"}}><span style={{width:8,height:8,borderRadius:"50%",background:todayPlan.color,display:"inline-block"}}/> Heute: {todayPlan.name}</div>}
         <button style={{...s.heroBtn, padding: isMobile ? "8px 16px" : s.heroBtn.padding, fontSize: isMobile ? 13 : 14}} onClick={onLog}>{IC.plus} Training starten</button>
       </div>
@@ -1083,7 +1087,7 @@ function Dashboard({data,user,onLog,onView,totalVol,thisWeek,todayNut,isMobile})
         </div>
       </div>
     </div>
-    {last&&(<div><h2 style={s.secTitle}>Letztes Training</h2><div style={s.recentCard} className="recentCard" onClick={()=>onView("history")}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:700}}>{last.name}</div>{last.hiitMode && <div style={{display:"flex",color:"#FFD166"}} className="hiit-glow">{IC.bolt}</div>}</div><div style={{display:"flex",gap:4,color:"#666",fontSize:12,alignItems:"center", flexWrap:"wrap"}}>{IC.clock} {last.duration} Min · {last.exercises.length} Übungen · {fmtDate(last.date)}</div>{last.note&&<div style={{marginTop:8,color:"#aaa",fontSize:12,fontStyle:"italic"}}>„{last.note}"</div>}</div><div style={{fontSize:20,color:"#444", marginLeft: 10}}>→</div></div></div>)}
+    {last&&(<div><h2 style={s.secTitle}>Letztes Training</h2><div style={s.recentCard} className="recentCard" onClick={()=>onView("history")}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:16,fontWeight:700}}>{last.name}</div>{last.hiitMode && <div style={{display:"flex",color:"#FFD166"}} className="hiit-glow">{IC.bolt}</div>}</div><div style={{display:"flex",gap:4,color:"#666",fontSize:12,alignItems:"center", flexWrap:"wrap"}}>{IC.clock} {last.duration} Min · {last.exercises.length} Übungen · {fmtDate(last.date)}</div>{last.note&&<div style={{marginTop:8,color:"#aaa",fontSize:12,fontStyle:"italic"}}>„{last.note}"</div>}</div><div style={{fontSize:20,color:"#444", marginLeft: 10}}>→</div></div></div>)}
   </div>);}
 
 const MEASUREMENT_TYPES = ["Bauchumfang (cm)", "Brustumfang (cm)", "Oberarm L (cm)", "Oberarm R (cm)", "Oberschenkel L (cm)", "Oberschenkel R (cm)", "Wade L (cm)", "Wade R (cm)"];
@@ -1214,7 +1218,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
         </div>
         <div style={{flex:1, textAlign:"center"}}>
           <div style={{fontSize:10, color:"#888", fontWeight:700}}>AKTUELLES GEWICHT</div>
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"#00D9C0"}}>{weightPoints.length?weightPoints[weightPoints.length-1].toFixed(1):"--"}<span style={{fontSize:13,color:"#666",fontWeight:400,marginLeft:6}}>kg</span></div>
+          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:26,fontWeight:800,color:"#00D9C0"}}>{weightPoints.length?weightPoints[weightPoints.length-1].toFixed(1):"--"}<span style={{fontSize:13,color:"#666",fontWeight:400,marginLeft:6}}>kg</span></div>
         </div>
         <div style={{flex:1, textAlign:"right"}}>
           <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", letterSpacing:1}}>MINIMUM</div>
@@ -1448,7 +1452,7 @@ function Stats({data,prs,nutrition,user}){
     
     <div className="res-grid-4-2" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:22}}>
       {[[totalW,"Trainings","#FF6B35"],[`${totalD}min`,"Gesamt-Zeit","#00D9C0"],[`${totalVK}k kg`,"Volumen","#A78BFA"],[`${avgD}min`,"Ø Dauer","#FFD166"]].map(([v,l,c],i)=>(
-        <div key={i} style={{...s.card,padding:"20px 10px",textAlign:"center",display:"flex",flexDirection:"column",justifyContent:"center"}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:11,fontWeight:700,color:"#666",marginTop:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>{l}</div></div>
+        <div key={i} style={{...s.card,padding:"20px 10px",textAlign:"center",display:"flex",flexDirection:"column",justifyContent:"center"}}><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:26,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:11,fontWeight:700,color:"#666",marginTop:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>{l}</div></div>
       ))}
     </div>
 
@@ -1649,7 +1653,7 @@ function Nutrition({nutrition,setNutrition,user,notify,favFoods,setFavFoods,isMo
           )}
 
           <div style={{...s.card,marginBottom:22, padding: isMobile ? 16 : 22}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h3 style={s.cardTitle}>Makros</h3><div style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile ? 16 : 18,fontWeight:800,color:"#FF6B35"}}>{dayData.calories}<span style={{fontSize:11,color:"#666",fontWeight:400}}> / {calGoal} kcal</span></div></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h3 style={s.cardTitle}>Makros</h3><div style={{fontFamily:"'DM Sans',sans-serif",fontSize: isMobile ? 16 : 18,fontWeight:800,color:"#FF6B35"}}>{dayData.calories}<span style={{fontSize:11,color:"#666",fontWeight:400}}> / {calGoal} kcal</span></div></div>
             <div style={{height:9,background:"#1A1A1F",borderRadius:5,overflow:"hidden",marginBottom:18}}><div style={{height:"100%",width:`${Math.min(dayData.calories/calGoal*100,100)}%`,background:"#FF6B35",borderRadius:5,transition:"width 0.4s"}}/></div>
             <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)",gap:12}}>
               {[["Protein",dayData.protein||0,protGoal,"g","#00D9C0"],["Kohlenhydrate",dayData.carbs||0,carbGoal,"g","#FFD166"],["Fett",dayData.fat||0,fatGoal,"g","#A78BFA"]].map(([label,val,goal,unit,color])=>(
@@ -1800,7 +1804,7 @@ function Plans({data,setData,onNew,onEdit,notify}){
       const exs=plan.exercises.map(e=>typeof e==="string"?{name:e,photo:null}:e);
       return(<div key={plan.id} style={{...s.planCard,borderTopColor:plan.color}} className="planCard">
       <div style={{width:42,height:42,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14,background:plan.color+"20",color:plan.color}}>{IC.dumbbell}</div>
-      <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:19,fontWeight:800,margin:"0 0 14px",letterSpacing:"-0.5px"}}>{plan.name}</h3>
+      <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:19,fontWeight:800,margin:"0 0 14px",letterSpacing:"-0.5px"}}>{plan.name}</h3>
       
       <div style={{marginBottom:14}}>
         <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:5}}>Muskelgruppen</div>
@@ -1873,6 +1877,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
 
   const workerRef = useRef(null);
   const wakeLockRef = useRef(null);
+  const lastTickTimeRef = useRef(Date.now());
 
 
   useEffect(() => {
@@ -1922,6 +1927,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
 
   useEffect(() => {
     if (running) {
+      lastTickTimeRef.current = Date.now();
       workerRef.current.postMessage('start');
     } else {
       workerRef.current.postMessage('stop');
@@ -1935,29 +1941,68 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
       if ('geolocation' in navigator) {
         if (!gpsData[curEx]) setGpsData(p => ({...p, [curEx]: { path: [], dist: 0, lastPos: null, maxSpeed: 0 }}));
         watchId.current = navigator.geolocation.watchPosition((pos) => {
-          const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+          // 1. Filter out poor accuracy readings (e.g. > 30 meters)
+          const accuracy = pos.coords.accuracy;
+          if (accuracy && accuracy > 30) {
+            if (window.dbg) dbg('⚠️ GPS ungenau (Acc: ' + accuracy + 'm) - ignoriert', '#ff9');
+            return;
+          }
+
+          const lat = pos.coords.latitude; 
+          const lng = pos.coords.longitude;
           const t = Date.now();
           const alt = pos.coords.altitude || 0;
-          let currentSpeed = pos.coords.speed ? (pos.coords.speed * 3.6) : null;
+          
+          // Use device-reported speed if available and valid (0 is valid!)
+          let currentSpeed = (pos.coords.speed !== null && pos.coords.speed !== undefined && pos.coords.speed >= 0) 
+            ? (pos.coords.speed * 3.6) 
+            : null;
 
           setGpsData(prev => {
             const current = prev[curEx] || { path: [], dist: 0, lastPos: null, maxSpeed: 0 };
             let newDist = current.dist;
+            let speed = currentSpeed;
+
             if (current.lastPos) {
               const stepDist = calcDist(current.lastPos.lat, current.lastPos.lng, lat, lng);
-              newDist += stepDist;
-              if (currentSpeed === null) {
-                const dtHours = (t - current.lastPos.t) / 3600000;
-                currentSpeed = dtHours > 0 ? (stepDist / dtHours) : 0;
+              const dtMs = t - current.lastPos.t;
+              
+              // Only process updates at least 1 second apart to avoid tiny dt speed spikes
+              if (dtMs < 1000) return prev;
+
+              // Calculate speed if not reported by device
+              if (speed === null) {
+                const dtHours = dtMs / 3600000;
+                speed = dtHours > 0 ? (stepDist / dtHours) : 0;
+              }
+
+              // Discard unrealistic speed spikes (glitches)
+              if (speed > 80) {
+                if (window.dbg) dbg('⚠️ GPS Geschwindigkeits-Peak ignoriert: ' + speed.toFixed(1) + ' km/h', '#f99');
+                return prev;
+              }
+
+              // Filter out GPS drift / standing jitter: only add distance if moved > 5 meters
+              if (stepDist >= 0.005) {
+                newDist += stepDist;
+              } else {
+                if (currentSpeed === null) speed = 0; // Assume stationary if no device speed
+                // DO NOT add stepDist to newDist and DO NOT update distance baseline (lastPos)
               }
             } else {
-              if (currentSpeed === null) currentSpeed = 0;
+              if (speed === null) speed = 0;
             }
-            const maxSpeed = Math.max(current.maxSpeed || 0, currentSpeed);
-            const newPoint = { lat, lng, t, speed: currentSpeed, alt };
+
+            const maxSpeed = Math.max(current.maxSpeed || 0, speed);
+            const newPoint = { lat, lng, t, speed, alt };
+            
+            // Only update distance baseline (lastPos) if we actually moved or if it's the first point
+            const nextLastPos = (!current.lastPos || (calcDist(current.lastPos.lat, current.lastPos.lng, lat, lng) >= 0.005)) 
+              ? newPoint 
+              : current.lastPos;
+
             const newPath = [...current.path, newPoint];
 
-            
             if (mapInst.current) {
               mapInst.current.setView([lat, lng], 16);
               if (polyRef.current) polyRef.current.setLatLngs(newPath);
@@ -1976,21 +2021,34 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
                 ns[curEx][0].km = newDist.toFixed(2);
                 const tz = timerRef.current || 1;
                 ns[curEx][0].tempo = ((newDist / tz) * 3600).toFixed(1);
-                ns[curEx][0].kcal = Math.round(newDist * 70); // simplistic avg kcal calc
+                ns[curEx][0].kcal = Math.round(newDist * 70);
                 ns[curEx][0].routePath = newPath;
-                ns[curEx][0].currentSpeed = currentSpeed.toFixed(1);
+                ns[curEx][0].currentSpeed = speed.toFixed(1);
                 ns[curEx][0].maxSpeed = maxSpeed.toFixed(1);
               }
               return ns;
             });
 
-            return {...prev, [curEx]: {...current, path: newPath, dist: newDist, lastPos: newPoint, maxSpeed}};
-
+            return {...prev, [curEx]: {...current, path: newPath, dist: newDist, lastPos: nextLastPos, maxSpeed}};
           });
         }, (err) => console.log('GPS err:', err), { enableHighAccuracy: true });
       }
     } else {
-      if (watchId.current) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; }
+      if (watchId.current) { 
+        navigator.geolocation.clearWatch(watchId.current); 
+        watchId.current = null; 
+      }
+      // Reset lastPos on pause to prevent distance/speed jumps upon resume
+      setGpsData(prev => {
+        const current = prev[curEx];
+        if (current) {
+          return {
+            ...prev,
+            [curEx]: { ...current, lastPos: null }
+          };
+        }
+        return prev;
+      });
     }
     return () => { if (watchId.current) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; } };
   }, [step, running, curEx]);
@@ -2180,11 +2238,10 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
   };
 
   // Audible alerts and timers
-  const lastTickTimeRef = useRef(Date.now());
-  const stateRef = useRef({ running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify });
+  const stateRef = useRef({ running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify, exTimer });
   useEffect(() => {
-    stateRef.current = { running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify };
-  }, [running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify]);
+    stateRef.current = { running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify, exTimer };
+  }, [running, exTimerActive, hiitMode, curEx, voiceVolume, goNext, notify, exTimer]);
 
   useEffect(() => {
     const handleTick = () => {
@@ -2201,40 +2258,41 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
       if (ticks > 0) {
         lastTickTimeRef.current += ticks * 1000;
         
-        // Process each missed second
-        for (let i = 0; i < ticks; i++) {
-          setTimer(v => v + 1);
+        // 1. Increment global timer in one step
+        setTimer(v => v + ticks);
+        
+        // 2. Handle exercise countdown timer
+        if (stateRef.current.exTimerActive) {
+          const currentExTimer = stateRef.current.exTimer;
           
-          if (stateRef.current.exTimerActive) {
-            setExTimer(v => {
-              if (v <= 0) return 0;
-              const next = v - 1;
-              setHiitStatus(s => ({...s, [stateRef.current.curEx]: (s[stateRef.current.curEx]||0) + 1}));
-              
-              if (next <= 0) {
-                // Wait for state updates to settle before calling goNext
-                setTimeout(() => {
-                   const latest = stateRef.current;
-                   if (latest.exTimerActive) { // Double check if still active
-                     setExTimerActive(false);
-                     if (latest.hiitMode) {
-                       playBeep(880, 0.6, 0.4);
-                       latest.goNext();
-                     } else {
-                       playBeep(880, 0.4, 0.2);
-                     }
-                   }
-                }, 0);
-                return 0;
+          if (currentExTimer > 0) {
+            const exElapsed = Math.min(ticks, currentExTimer);
+            const nextTime = currentExTimer - exElapsed;
+            
+            // Decrement exercise timer
+            setExTimer(nextTime);
+            
+            // Record elapsed time for the current exercise
+            setHiitStatus(s => ({
+              ...s,
+              [curEx]: (s[curEx] || 0) + exElapsed
+            }));
+            
+            if (nextTime <= 0) {
+              setExTimerActive(false);
+              if (hiitMode) {
+                playBeep(880, 0.6, 0.4);
+                goNext();
+              } else {
+                playBeep(880, 0.4, 0.2);
               }
-              if (stateRef.current.hiitMode) {
-                 if (next === 3) speak("3", stateRef.current.voiceVolume);
-                 if (next === 2) speak("2", stateRef.current.voiceVolume);
-                 if (next === 1) speak("1", stateRef.current.voiceVolume);
-                 if (next <= 3 && next > 0) playBeep(440, 0.1, 0.15);
-              }
-              return next;
-            });
+            } else if (ticks === 1 && hiitMode) {
+              // Only play countdown announcements in real-time ticking
+              if (nextTime === 3) speak("3", voiceVolume);
+              if (nextTime === 2) speak("2", voiceVolume);
+              if (nextTime === 1) speak("1", voiceVolume);
+              if (nextTime <= 3 && nextTime > 0) playBeep(440, 0.1, 0.15);
+            }
           }
         }
       }
@@ -2515,7 +2573,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
             setRunning(r=>!r);
           }}>
             <div style={{display:"flex", alignItems:"center", gap:8}}>
-              <div style={{fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#FF6B35", letterSpacing:1}}>{fmtTimer(timer)}</div>
+              <div style={{fontFamily:"'DM Sans',sans-serif", fontSize:26, fontWeight:800, color:"#FF6B35", letterSpacing:1}}>{fmtTimer(timer)}</div>
               <div style={{color:"#FF6B35", display:"flex"}}>{running ? <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}</div>
             </div>
           </div>
@@ -2523,7 +2581,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           {hiitMode && !exTimerActive && (
             <button 
               className="hiit-glow"
-              style={{...s.primaryBtn, flex: 1, background: "rgba(255, 209, 102, 0.15)", border: "2px solid #FFD166", color: "#FFD166", height: 50, fontFamily: "'Syne', sans-serif", fontSize: 14, letterSpacing: 1}} 
+              style={{...s.primaryBtn, flex: 1, background: "rgba(255, 209, 102, 0.15)", border: "2px solid #FFD166", color: "#FFD166", height: 50, fontFamily: "'DM Sans',sans-serif", fontSize: 14, letterSpacing: 1}} 
               onClick={() => {
                 playBeep(440, 0.1, 0.1);
                 setTimeout(() => playBeep(440, 0.1, 0.1), 300);
@@ -2547,7 +2605,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
               <span style={{color: "#FFD166"}}>{exercises[curEx + 1].name}</span>
             </div>
           )}
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile ? 22 : 26, fontWeight:800,color:"#fff",marginBottom:12}}>{curExData.name}</div>
+          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize: isMobile ? 22 : 26, fontWeight:800,color:"#fff",marginBottom:12}}>{curExData.name}</div>
           <div style={{width:"100%",height: isMobile ? 180 : 220, borderRadius:20,overflow:"hidden",marginBottom:16,background:"#0D0D0F",border:"1px solid #1E1E24",position:"relative", boxShadow: "0 10px 30px rgba(0,0,0,0.3)"}}>
             {curExData.trackGPS ? (
               <div ref={mapRef} style={{width:"100%", height:"100%"}}></div>
@@ -2967,7 +3025,7 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
               [`${w.startTime||"--:--"} - ${w.endTime||"--:--"}`, "Zeit", "#F0EDE8"]
             ].map(([v,l,c],i)=>(
               <div key={i} style={{flex:1,padding:isMobile?10:14,textAlign:"center",borderRight:i<3?"1px solid #1E1E24":"none"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:isMobile?14:18,fontWeight:800,color:c}}>{v}</div>
+                <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:isMobile?14:18,fontWeight:800,color:c}}>{v}</div>
                 <div style={{fontSize:9,color:"#666",marginTop:4}}>{l}</div>
               </div>
             ))}
@@ -2986,7 +3044,7 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                         <div style={{fontWeight:800,fontSize:17,color:"#fff"}}>{ex.name}</div>
                       </div>
                       <div style={{textAlign:"right"}}>
-                        <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"#FFD166"}}>{ex.duration}s</div>
+                        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:22,fontWeight:800,color:"#FFD166"}}>{ex.duration}s</div>
                         <div style={{fontSize:10,color:"#666",fontWeight:700}}>GEHALTEN</div>
                       </div>
                     </div>
@@ -3110,7 +3168,7 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                     style={{width: 20, height: 20, accentColor: "#FFD166", cursor: "pointer"}}
                   />
                 )}
-                <span style={{fontSize:24,fontWeight:900,fontFamily:"'Syne',sans-serif",color:"#F0EDE8"}}>KW {group.wn}</span>
+                <span style={{fontSize:24,fontWeight:900,fontFamily:"'DM Sans',sans-serif",color:"#F0EDE8"}}>KW {group.wn}</span>
                 <span style={{fontSize:14,fontWeight:700,color:"#666"}}>({group.dateRange})</span>
               </div>
               {!compMode && (
@@ -3129,7 +3187,7 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                   <div key={w.id} style={{...s.histCard,padding:18, border:"1px solid #1E1E24", borderLeft:`6px solid ${plan?.color || "#1E1E24"}`, background:plan?`${plan.color}08`:"#111114", flexDirection:"column", alignItems:"stretch"}} className="histCard" onClick={()=>setSelWO(w.id)}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:plan?.color || "#F0EDE8"}}>{w.name}</div>
+                        <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:18,color:plan?.color || "#F0EDE8"}}>{w.name}</div>
                         {w.hiitMode && <div style={{display:"flex",color:"#FFD166",filter:"drop-shadow(0 0 5px rgba(255,209,102,0.5))"}} className="hiit-glow">{IC.bolt}</div>}
                       </div>
                       <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -3209,7 +3267,7 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                   const group = Object.values(grouped)[idx];
                   return (
                     <div key={idx} style={{background: "#0D0D0F", border: "1px solid #1E1E24", borderRadius: 20, padding: 20}}>
-                       <div style={{fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 900, color: "#FFD166", marginBottom: 5}}>KW {group.wn}</div>
+                       <div style={{fontFamily: "'DM Sans',sans-serif", fontSize: 20, fontWeight: 900, color: "#FFD166", marginBottom: 5}}>KW {group.wn}</div>
                        <div style={{fontSize: 12, color: "#666", marginBottom: 20, display: "flex", alignItems: "center", gap: 6}}>
                          {IC.calendar} {group.dateRange} ({group.workouts.length} Trainings)
                        </div>
@@ -3314,7 +3372,7 @@ function PRPage({prs,setPrs,notify}){
   return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Bestleistungen</h1><p style={s.pageSub}>Deine persönlichen Rekorde</p></div></div>
     <div style={{...s.card,marginBottom:26}}><h3 style={{...s.cardTitle,marginBottom:14}}>Neuen PR eintragen</h3><div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:11,alignItems:"end"}}><div style={s.fg}><label style={s.lbl}>Übung</label><input style={s.inp} value={exName} onChange={e=>setExName(e.target.value)} placeholder="Bankdrücken" onKeyDown={e=>e.key==="Enter"&&save()}/></div><div style={s.fg}><label style={s.lbl}>Gewicht (kg)</label><input style={s.inp} type="number" value={w} onChange={e=>setW(e.target.value)} placeholder="100"/></div><div style={s.fg}><label style={s.lbl}>Wdh.</label><input style={s.inp} type="number" value={r} onChange={e=>setR(e.target.value)} placeholder="5"/></div><div style={s.fg}><label style={s.lbl}>Datum</label><input style={s.inp} type="date" value={date} onChange={e=>setDate(e.target.value)}/></div></div><button style={{...s.primaryBtn,marginTop:7}} onClick={save}>{IC.star} PR speichern</button></div>
     {!entries.length&&<div style={{textAlign:"center",padding:"50px 18px",color:"#555",background:"#111114",borderRadius:14,border:"1px solid #1E1E24"}}><div style={{fontSize:36,marginBottom:10}}>🏆</div>Noch keine Bestleistungen.</div>}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:14}}>{entries.map(([key,pr])=>(<div key={key} style={{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:18,position:"relative"}} className="statCard"><div style={{fontSize:24,marginBottom:7}}>🏆</div><div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:800,marginBottom:5}}>{pr.name||key}</div><div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"#FFD166"}}>{pr.weight}<span style={{fontSize:13,color:"#888",fontWeight:400}}>kg</span></div><div style={{color:"#888",fontSize:12,marginTop:3}}>{pr.reps} Wdh.</div><div style={{color:"#555",fontSize:10,marginTop:3}}>{pr.date&&fmtDate(pr.date)}</div><button className="cardIconBtn" style={{...s.cardIconBtn,position:"absolute",top:11,right:11,color:"#EF476F88"}} onClick={()=>del(key)}>{IC.trash}</button></div>))}</div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:14}}>{entries.map(([key,pr])=>(<div key={key} style={{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:18,position:"relative"}} className="statCard"><div style={{fontSize:24,marginBottom:7}}>🏆</div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:800,marginBottom:5}}>{pr.name||key}</div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:26,fontWeight:800,color:"#FFD166"}}>{pr.weight}<span style={{fontSize:13,color:"#888",fontWeight:400}}>kg</span></div><div style={{color:"#888",fontSize:12,marginTop:3}}>{pr.reps} Wdh.</div><div style={{color:"#555",fontSize:10,marginTop:3}}>{pr.date&&fmtDate(pr.date)}</div><button className="cardIconBtn" style={{...s.cardIconBtn,position:"absolute",top:11,right:11,color:"#EF476F88"}} onClick={()=>del(key)}>{IC.trash}</button></div>))}</div>
   </div>);}
 function PlanModal({data,setData,editPlan,onClose,notify,library=[]}){
   const isEdit=!!editPlan;
@@ -3403,7 +3461,7 @@ function PlanModal({data,setData,editPlan,onClose,notify,library=[]}){
           <div style={{display:"flex",alignItems:"center",gap:9}}>
             {ex.libId&&<div style={{fontSize:9,color:"#3B82F6",fontWeight:700,background:"#3B82F610",border:"1px solid #3B82F630",borderRadius:4,padding:"1px 5px",flexShrink:0}}>Bibl.</div>}
             <div style={{position:"relative",flexShrink:0,cursor:"pointer"}} onClick={()=>fileRefs.current[idx]?.click()}>{ex.photo?<MediaDisplay src={ex.photo} style={{width:40,height:40,borderRadius:8,objectFit:"cover"}}/>:<div style={{width:40,height:40,borderRadius:8,background:"#1A1A1F",border:"1px dashed #3A3A40",display:"flex",alignItems:"center",justifyContent:"center",color:"#555"}}>{IC.camera}</div>}<input ref={el=>fileRefs.current[idx]=el} type="file" accept="image/*,video/*" style={{display:"none"}} onChange={e=>setExPhoto(idx,e.target.files[0])}/></div>
-            <input style={{flex:1,fontSize:14,fontWeight:700,background:"transparent",border:"none",color:"#F0EDE8",padding:"4px 0",fontFamily:"'Syne',sans-serif",outline:"none"}} value={ex.name} onChange={e=>setForm(f=>{const exArr=[...f.exercises];exArr[idx]={...exArr[idx],name:e.target.value};return{...f,exercises:exArr};})} placeholder="Name..."/>
+            <input style={{flex:1,fontSize:14,fontWeight:700,background:"transparent",border:"none",color:"#F0EDE8",padding:"4px 0",fontFamily:"'DM Sans',sans-serif",outline:"none"}} value={ex.name} onChange={e=>setForm(f=>{const exArr=[...f.exercises];exArr[idx]={...exArr[idx],name:e.target.value};return{...f,exercises:exArr};})} placeholder="Name..."/>
             <button style={{background:"transparent",border:"none",color:"#444",cursor:"pointer",padding:8}} onClick={()=>setForm(f=>({...f,exercises:f.exercises.filter((_,i)=>i!==idx)}))}>{IC.trash}</button>
           </div>
 
@@ -3449,7 +3507,7 @@ function PlanModal({data,setData,editPlan,onClose,notify,library=[]}){
   {showLibPicker&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",backdropFilter:"blur(6px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:18}} onClick={()=>setShowLibPicker(false)}>
     <div style={{background:"#111114",border:"1px solid #2A2A30",borderRadius:18,padding:24,width:"100%",maxWidth:520,maxHeight:"80vh",display:"flex",flexDirection:"column",gap:12}} onClick={e=>e.stopPropagation()}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,margin:0}}>📚 Übung aus Bibliothek</h3>
+        <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:17,fontWeight:800,margin:0}}>📚 Übung aus Bibliothek</h3>
         <button style={{background:"transparent",border:"none",color:"#666",cursor:"pointer",display:"flex"}} onClick={()=>setShowLibPicker(false)}>{IC.x}</button>
       </div>
       <input style={s.inp} placeholder="Suchen..." value={libSearch} onChange={e=>setLibSearch(e.target.value)}/>
@@ -3538,7 +3596,7 @@ function WeeklyReportModal({report, onClose, data}) {
         <div id="report-area" style={{padding:24, background:"#0D0D0F"}}>
           <div style={{display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center", marginBottom:30}}>
             <div style={{color:"#FF6B35", marginBottom:6, transform:"scale(1.5)"}}>{IC.bolt}</div>
-            <div style={{fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:900, color:"#FF6B35", letterSpacing:1, marginBottom:16}}>FITFORGE</div>
+            <div style={{fontFamily:"'DM Sans',sans-serif", fontSize:22, fontWeight:900, color:"#FF6B35", letterSpacing:1, marginBottom:16}}>FITFORGE</div>
             <h2 style={{...s.modalTitle, margin:0, fontSize:24}}>Wochenbericht KW {report.wn}</h2>
             <div style={{fontSize:13, color:"#666", marginTop:4}}>{report.dateRange} {report.yr}</div>
           </div>
@@ -3569,7 +3627,7 @@ function WeeklyReportModal({report, onClose, data}) {
               [`${Math.floor(totalHiitSec/60)}m`, "HIIT Zeit", "#FFD166"]
             ].filter(x => x[0] !== "0" && x[0] !== "0.0k").map(([v,l,c], i) => (
               <div key={i} style={{background:"#161618", padding:"12px 4px", borderRadius:16, textAlign:"center", border:"1px solid #1E1E24"}}>
-                <div style={{fontFamily:"'Syne',sans-serif", fontSize: 16, fontWeight: 800, color:c}}>{v}</div>
+                <div style={{fontFamily:"'DM Sans',sans-serif", fontSize: 16, fontWeight: 800, color:c}}>{v}</div>
                 <div style={{fontSize: 8, color:"#666", marginTop: 4, textTransform:"uppercase", fontWeight: 700}}>{l}</div>
               </div>
             ))}
@@ -3707,7 +3765,7 @@ function PhotoDetailModal({photo, onClose, isMobile}) {
       </div>
       
       <div style={{position:"absolute", bottom:30, left:"50%", transform:"translateX(-50%)", background:"rgba(0,0,0,0.6)", backdropFilter:"blur(8px)", padding:"12px 24px", borderRadius:20, textAlign:"center", color:"#fff"}}>
-        <div style={{fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15}}>{fmtDate(photo.date)}</div>
+        <div style={{fontFamily:"'DM Sans',sans-serif", fontWeight:800, fontSize:15}}>{fmtDate(photo.date)}</div>
         <div style={{fontSize:11, color:"#FF6B35", fontWeight:700, textTransform:"uppercase", marginTop:2}}>{photo.tag}</div>
       </div>
     </div>
@@ -3737,7 +3795,7 @@ function ProfilePage({user,setUser,notify}){
   const save=()=>{setUser(form);notify("Profil gespeichert! ✅");};
 
   return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Mein Profil</h1><p style={s.pageSub}>Daten & Einstellungen</p></div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:22}}>
-  <div style={s.card}><h3 style={s.cardTitle}>Persönliche Daten</h3><div style={{display:"flex",alignItems:"center",gap:18,marginBottom:24}}><div className="avCircle" style={{width:76,height:76,borderRadius:"50%",background:"#1A1A1F",border:"2px dashed #3A3A40",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",overflow:"hidden",flexShrink:0}} onClick={()=>fileRef.current.click()}>{form.avatar?<img src={form.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<span style={{fontSize:28,fontFamily:"'Syne',sans-serif",fontWeight:800,color:"#FF6B35"}}>{getInitials(form)}</span>}<div className="avOverlay" style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.2s"}}>{IC.camera}</div></div><input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleAv}/><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16}}>{form.firstName||form.lastName?`${form.firstName} ${form.lastName}`.trim():"Dein Name"}</div></div></div>
+  <div style={s.card}><h3 style={s.cardTitle}>Persönliche Daten</h3><div style={{display:"flex",alignItems:"center",gap:18,marginBottom:24}}><div className="avCircle" style={{width:76,height:76,borderRadius:"50%",background:"#1A1A1F",border:"2px dashed #3A3A40",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",overflow:"hidden",flexShrink:0}} onClick={()=>fileRef.current.click()}>{form.avatar?<img src={form.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<span style={{fontSize:28,fontFamily:"'DM Sans',sans-serif",fontWeight:800,color:"#FF6B35"}}>{getInitials(form)}</span>}<div className="avOverlay" style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.2s"}}>{IC.camera}</div></div><input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleAv}/><div><div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:16}}>{form.firstName||form.lastName?`${form.firstName} ${form.lastName}`.trim():"Dein Name"}</div></div></div>
   <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Vorname</label><input style={s.inp} value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} placeholder="Max"/></div><div style={s.fg}><label style={s.lbl}>Nachname</label><input style={s.inp} value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} placeholder="Mustermann"/></div></div>
   <div style={s.fg}><label style={s.lbl}>E-Mail</label><input style={s.inp} type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="max@beispiel.de"/></div>
   <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Gewicht (kg)</label><input style={s.inp} type="number" value={form.weight} onChange={e=>setForm(f=>({...f,weight:e.target.value}))} placeholder="80"/></div><div style={s.fg}><label style={s.lbl}>Größe (cm)</label><input style={s.inp} type="number" value={form.height} onChange={e=>setForm(f=>({...f,height:e.target.value}))} placeholder="180"/></div></div>
@@ -3965,7 +4023,7 @@ function RecipesPage({notify, isMobile}){
         <div style={{background:"#111114", border: isMobile?"none":"1px solid #1E1E24", borderRadius:18, overflow:"hidden"}}>
           <div style={{background:`linear-gradient(135deg,${CAT_COLORS[r.category]||"#FF6B35"}22,#0D0D0F)`, padding: isMobile?"20px":"28px 28px 20px"}}>
             <div style={{display:"inline-flex", background:CAT_COLORS[r.category]||"#FF6B35", borderRadius:8, padding:"4px 12px", fontSize:10, fontWeight:700, color:"#000", marginBottom:12}}>{r.category}</div>
-            <h1 style={{fontFamily:"'Syne',sans-serif", fontSize: isMobile?22:28, fontWeight:800, margin:"0 0 8px"}}>{r.name}</h1>
+            <h1 style={{fontFamily:"'DM Sans',sans-serif", fontSize: isMobile?22:28, fontWeight:800, margin:"0 0 8px"}}>{r.name}</h1>
             <div style={{display:"flex", gap: isMobile?10:16, fontSize:12, color:"#666", flexWrap:"wrap"}}>
               <span>⏱ {r.time} Min</span>
               <span>🔥 {r.kcal} kcal</span>
@@ -3976,7 +4034,7 @@ function RecipesPage({notify, isMobile}){
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:20,marginTop:16}}>
               {(r.tags||[]).map((tag,i)=><span key={i} style={{fontSize:10,background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"2px 8px",color:"#888"}}>{tag}</span>)}
             </div>
-            <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,marginBottom:12}}>Zutaten</h3>
+            <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:16,fontWeight:800,marginBottom:12}}>Zutaten</h3>
             <div style={{background:"#0D0D0F",borderRadius:12,padding:"4px 0",marginBottom:20}}>
               {(Array.isArray(r.ingredients)?r.ingredients:[]).map((ing,i)=>(
                 <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",borderBottom:i<(r.ingredients?.length||0)-1?"1px solid #1A1A1F":"none"}}>
@@ -3985,7 +4043,7 @@ function RecipesPage({notify, isMobile}){
                 </div>
               ))}
             </div>
-            <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,marginBottom:12}}>Zubereitung</h3>
+            <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:16,fontWeight:800,marginBottom:12}}>Zubereitung</h3>
             <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:24}}>
               {(Array.isArray(r.steps)?r.steps:[]).map((step,i)=>(
                 <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -4019,7 +4077,7 @@ function RecipesPage({notify, isMobile}){
       <div style={{padding: isMobile ? "10px 10px 80px" : "28px 32px 56px", maxWidth:700, margin:"0 auto"}}>
         <button style={{background:"transparent",border:"none",color:"#888",cursor:"pointer",fontSize:13,padding: isMobile?"10px 0":"0 0 18px",display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans',sans-serif"}} onClick={()=>setShowShopping(false)}>← Zurück</button>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20, flexDirection: isMobile?"column":"row", gap:12}}>
-          <div><h1 style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,margin:0}}>Einkaufsliste</h1><p style={{color:"#666",fontSize:12,marginTop:4}}>{shoppingList.length} Artikel</p></div>
+          <div><h1 style={{fontFamily:"'DM Sans',sans-serif",fontSize:24,fontWeight:800,margin:0}}>Einkaufsliste</h1><p style={{color:"#666",fontSize:12,marginTop:4}}>{shoppingList.length} Artikel</p></div>
           <div style={{display:"flex",gap:8, width: isMobile?"100%":"auto"}}>
             {Object.keys(checkedItems).some(k=>checkedItems[k])&&<button style={{background:"#EF476F22",border:"1px solid #EF476F44",borderRadius:9,padding:"8px 12px",color:"#EF476F",cursor:"pointer",fontSize:12,flex:1}} onClick={clearChecked}>Erledigte</button>}
             <button style={{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:9,padding:"8px 12px",color:"#888",cursor:"pointer",fontSize:12,flex:1}} onClick={()=>setShoppingList([])}>Leeren</button>
@@ -4050,7 +4108,7 @@ function RecipesPage({notify, isMobile}){
     <div style={{...s.page, padding: isMobile ? "10px 10px 80px" : s.page.padding, maxWidth:940, margin:"0 auto"}}>
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24, flexDirection: isMobile?"column":"row", gap:16}}>
-        <div><h1 style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile?26:32,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>Kochbuch</h1><p style={{color:"#666",fontSize:13,marginTop:4}}>{recipes.length} Rezepte gespeichert</p></div>
+        <div><h1 style={{fontFamily:"'DM Sans',sans-serif",fontSize: isMobile?26:32,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>Kochbuch</h1><p style={{color:"#666",fontSize:13,marginTop:4}}>{recipes.length} Rezepte gespeichert</p></div>
         <div style={{display:"flex",gap:8, width: isMobile?"100%":"auto"}}>
           <button style={{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:10,padding: isMobile?"10px":"10px 18px",color:"#aaa",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:7, flex:1, justifyContent:"center"}} onClick={()=>setShowShopping(true)}>
             🛒 {isMobile?"Liste":"Einkaufsliste"} {shoppingList.length>0&&<span style={{background:"#FF6B35",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{shoppingList.length}</span>}
@@ -4079,7 +4137,7 @@ function RecipesPage({notify, isMobile}){
 
       {/* Add recipe form */}
       {showAdd&&<div style={{...s.card, padding: isMobile?16:22, marginBottom:22}} className="fadeIn">
-        <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,margin:"0 0 16px"}}>Neues Rezept erstellen</h3>
+        <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:17,fontWeight:800,margin:"0 0 16px"}}>Neues Rezept erstellen</h3>
         <div style={{display:"grid",gridTemplateColumns: isMobile?"1fr":"2fr 1fr 1fr",gap:11,marginBottom:11}}>
           <div><label style={s.lbl}>Name</label><input style={s.inp} value={newRecipe.name} onChange={e=>setNewRecipe(r=>({...r,name:e.target.value}))} placeholder="z.B. Protein Pancakes"/></div>
           <div><label style={s.lbl}>Kategorie</label><select style={s.inp} value={newRecipe.category} onChange={e=>setNewRecipe(r=>({...r,category:e.target.value}))}>{["Frühstück","Mittagessen","Abendessen","Snack"].map(c=><option key={c}>{c}</option>)}</select></div>
@@ -4107,7 +4165,7 @@ function RecipesPage({notify, isMobile}){
                   {r.favorite?"★":"☆"}
                 </button>
               </div>
-              <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,margin:"0 0 8px", color:"#F0EDE8"}}>{r.name}</h3>
+              <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:16,fontWeight:800,margin:"0 0 8px", color:"#F0EDE8"}}>{r.name}</h3>
               <div style={{display:"flex",gap:10,fontSize:11, color:"#888"}}>
                 <span style={{color:"#FF6B35", fontWeight:700}}>🔥 {r.kcal} kcal</span>
                 <span style={{color:"#00D9C0", fontWeight:700}}>💪 {r.protein}g P</span>
@@ -4180,14 +4238,14 @@ function GoalsPage({user,setUser,data,notify,isMobile}){
         {[[`${doneGoals}/${totalGoals}`,"Erreicht","#FF6B35","🎯"],[`${avgProgress}%`,"Ø Fortschritt","#00D9C0","📈"],[totalWorkouts,"Trainings","#A78BFA","💪"],[thisWeekW,"Diese Woche","#FFD166","🔥"]].map(([v,l,c,ic],i)=>(
           <div key={i} style={{...s.statCard, padding: isMobile ? 12 : 18, textAlign:"center"}} className="statCard">
             <div style={{fontSize: isMobile ? 18 : 22,marginBottom:6}}>{ic}</div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize: isMobile ? 20 : 24,fontWeight:800,color:c}}>{v}</div>
+            <div style={{fontFamily:"'DM Sans',sans-serif",fontSize: isMobile ? 20 : 24,fontWeight:800,color:c}}>{v}</div>
             <div style={{fontSize:10,color:"#666",marginTop:4}}>{l}</div>
           </div>
         ))}
       </div>
 
       {showAdd&&<div style={{...s.card, padding: isMobile ? 16 : 22, marginBottom:24}} className="fadeIn">
-        <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,margin:"0 0 16px"}}>{editId?"Ziel bearbeiten":"Neues Ziel"}</h3>
+        <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,fontWeight:800,margin:"0 0 16px"}}>{editId?"Ziel bearbeiten":"Neues Ziel"}</h3>
         <div style={{marginBottom:14}}>
           <label style={s.lbl}>Icon</label>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -4224,7 +4282,7 @@ function GoalsPage({user,setUser,data,notify,isMobile}){
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
                 <div style={{width:40,height:40,borderRadius:10,background:goal.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{goal.icon}</div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:15,fontWeight:800,marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{goal.title}</div>
+                  <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:800,marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{goal.title}</div>
                   <div style={{fontSize:11,color:"#888"}}>{goal.category}</div>
                 </div>
               </div>
@@ -4401,11 +4459,11 @@ function LibraryCard({ex, setDetailEx, setEditEx, setShowForm, delEx, setEquipMo
           </div>
         )}
         <div style={{position:"absolute",top:8,right:8,background:"#FF6B35",borderRadius:"50%",width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",cursor:"pointer",boxShadow:"0 4px 12px rgba(255,107,53,0.3)"}} onClick={e=>{e.stopPropagation();setDescModalEx(ex);}}>
-          <span style={{fontSize:13,fontWeight:900,fontFamily:"'Syne',sans-serif"}}>i</span>
+          <span style={{fontSize:13,fontWeight:900,fontFamily:"'DM Sans',sans-serif"}}>i</span>
         </div>
       </div>
       <div style={{padding:"14px 16px", flex: 1, display: "flex", flexDirection: "column"}}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15,marginBottom:12}}>{ex.name}</div>
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:15,marginBottom:12}}>{ex.name}</div>
         
         {/* Row 1: Muskelgruppen Label */}
         <div style={{fontSize:9,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:5}}>Muskelgruppen</div>
@@ -5020,7 +5078,7 @@ function WochenplanPage({weekPlans,setWeekPlans,data,user,library,notify}){
           </button>
           
           <div style={{textAlign:"center"}}>
-            <span style={{fontSize:13, fontWeight:900, color:"#F0EDE8", fontFamily:"'Syne',sans-serif"}}>
+            <span style={{fontSize:13, fontWeight:900, color:"#F0EDE8", fontFamily:"'DM Sans',sans-serif"}}>
               {viewMode === 1 ? WP_DAY_NAMES[dayOffset] : `${WP_DAY_NAMES[dayOffset]} – ${WP_DAY_NAMES[Math.min(6, dayOffset + 2)]}`}
             </span>
             <div style={{fontSize:10, color:"#666", fontWeight:700, marginTop:2}}>
@@ -5060,7 +5118,7 @@ function WochenplanPage({weekPlans,setWeekPlans,data,user,library,notify}){
                 <div style={{display:"flex", alignItems:"center", gap:6}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:isToday?"#3B82F6":"#666",textTransform:"uppercase",letterSpacing:"0.5px"}}>{WP_DAY_SHORT[dayIdx]}</div>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15,color:isToday?"#F0EDE8":"#aaa"}}>{fmtShort(dayDate)}</div>
+                    <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:15,color:isToday?"#F0EDE8":"#aaa"}}>{fmtShort(dayDate)}</div>
                   </div>
                   {isPast && <div style={{color:"#00D9C0", fontSize:14}}>{IC.check}</div>}
                 </div>
@@ -5209,7 +5267,7 @@ function WPEntryModal({dayName,editEntry,plans,dayEntries,onSave,onDelete,onClos
     <div style={s.overlay2} onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{...s.modal,maxWidth:460,maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,margin:0}}>
+          <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:18,fontWeight:800,margin:0}}>
             {editEntry?"Eintrag bearbeiten":"Neuer Eintrag"} – {dayName}
           </h3>
           <button style={{background:"transparent",border:"none",color:"#666",cursor:"pointer",display:"flex"}} onClick={onClose}>{IC.x}</button>
@@ -5576,7 +5634,7 @@ function MagicAssistantModal({currentMonday,data,recipes,user,library,onApply,on
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:36,height:36,borderRadius:10,background:"#A78BFA",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff"}}>{IC.sparkles}</div>
             <div>
-              <h3 style={{margin:0,fontSize:17,fontFamily:"'Syne',sans-serif",fontWeight:800}}>KI-Planner PRO</h3>
+              <h3 style={{margin:0,fontSize:17,fontFamily:"'DM Sans',sans-serif",fontWeight:800}}>KI-Planner PRO</h3>
               <div style={{fontSize:11,color:FitAssistantService.getApiKey()?"#06D6A0":"#A78BFA",fontWeight:700,textTransform:"uppercase"}}>{FitAssistantService.getApiKey()?"Vollversion":"Beta"}</div>
             </div>
           </div>
@@ -5726,14 +5784,14 @@ function AuthScreen(){
 
   return(
     <div style={{minHeight:"100vh",background:"#0D0D0F",display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'DM Sans',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');input:focus{border-color:#FF6B35!important;outline:none;}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');input:focus{border-color:#FF6B35!important;outline:none;}`}</style>
 
       <div style={{width:"100%",maxWidth:420}}>
         {/* Logo */}
         <div style={{textAlign:"center",marginBottom:40}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:10,marginBottom:8}}>
             <svg width="32" height="32" fill="#FF6B35" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            <span style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:"#F0EDE8",letterSpacing:"-1px"}}>FitForge</span>
+            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:32,fontWeight:800,color:"#F0EDE8",letterSpacing:"-1px"}}>FitForge</span>
           </div>
           <p style={{color:"#666",fontSize:14,margin:0}}>{mode==="login"?"Willkommen zurück!":"Erstelle dein Konto"}</p>
         </div>
@@ -5791,9 +5849,9 @@ function AuthScreen(){
   );
 }
 
-const s={root:{display:"flex",minHeight:"100vh",background:"#0D0D0F",color:"#F0EDE8",fontFamily:"'DM Sans',sans-serif"},sidebar:{width:236,background:"#111114",borderRight:"1px solid #1E1E24",display:"flex",flexDirection:"column",padding:"26px 14px",position:"fixed",top:0,bottom:0,left:0,zIndex:100},logo:{display:"flex",alignItems:"center",gap:10,padding:"0 8px 26px"},logoTxt:{fontFamily:"'Syne',sans-serif",fontSize:23,fontWeight:800,letterSpacing:"-0.5px"},nav:{display:"flex",flexDirection:"column",gap:2,flex:1},navItem:{display:"flex",alignItems:"center",gap:11,padding:"9px 12px",borderRadius:9,border:"none",background:"transparent",color:"#888",cursor:"pointer",fontSize:15,fontWeight:500,transition:"all 0.2s",textAlign:"left"},navOn:{background:"#1E1E24",color:"#F0EDE8"},streakCard:{background:"linear-gradient(135deg,#FF6B35,#FF8C60)",borderRadius:13,padding:"13px 15px",display:"flex",alignItems:"center",gap:11},streakN:{fontWeight:800,fontSize:16,color:"#fff",fontFamily:"'Syne',sans-serif"},streakL:{fontSize:10,color:"rgba(255,255,255,0.8)"},main:{flex:1,minHeight:"100vh"},topBar:{position:"sticky",top:0,zIndex:9,background:"rgba(13,13,15,0.88)",backdropFilter:"blur(16px)",borderBottom:"1px solid #1E1E24",padding:"12px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"},topGreet:{fontFamily:"'Syne',sans-serif",fontSize:15,fontWeight:700,color:"#666"},iconCircle:{width:36,height:36,borderRadius:"50%",background:"#1A1A1F",border:"1px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#999",position:"relative",transition:"all 0.2s"},iconOn:{background:"#252528",color:"#F0EDE8",borderColor:"#3A3A40"},badge:{position:"absolute",top:-4,right:-4,background:"#FF6B35",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #0D0D0F"},avatarBtn:{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#FF6B35,#FF8C60)",border:"2px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",transition:"all 0.2s"},avatarOn:{borderColor:"#FF6B35",boxShadow:"0 0 0 3px rgba(255,107,53,0.2)"},initials:{fontFamily:"'Syne',sans-serif",fontSize:11,fontWeight:800,color:"#fff"},veil:{position:"fixed",inset:0,zIndex:8},dropdown:{position:"absolute",top:"calc(100% + 9px)",right:0,background:"#161618",border:"1px solid #2A2A30",borderRadius:14,overflow:"hidden",zIndex:50,boxShadow:"0 20px 60px rgba(0,0,0,0.6)"},ddHead:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 16px",borderBottom:"1px solid #1E1E24"},ddTitle:{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13},nRow:{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 16px",borderBottom:"1px solid #111116",cursor:"pointer"},nRowU:{background:"#1A1A1F"},toast:{position:"fixed",top:22,right:22,background:"#1A2A1A",border:"1px solid #2A4A2A",color:"#6EE7B7",borderRadius:11,padding:"11px 18px",display:"flex",alignItems:"center",gap:9,fontSize:15,fontWeight:600,zIndex:200},toastErr:{background:"#2A1A1A",border:"1px solid #4A2A2A",color:"#FCA5A5"},page:{padding:"20px 16px 56px",maxWidth:940,margin:"0 auto",transition:"padding 0.3s"},pageHead:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:16},pageTitle:{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-1px"},pageSub:{color:"#666",margin:"2px 0 0",fontSize:13},hero:{borderRadius:20,overflow:"hidden",position:"relative",height:300,marginBottom:26},heroBtn:{display:"inline-flex",alignItems:"center",gap:8,background:"#FF6B35",border:"none",color:"#fff",borderRadius:11,padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer",width:"fit-content",fontFamily:"'DM Sans',sans-serif"},statsRow:{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(130px, 1fr))",gap:12,marginBottom:20},statCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:16},statV:{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,lineHeight:1},statL:{fontSize:11,color:"#666",marginTop:4},secTitle:{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,margin:0},weekGrid:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4},dayCell:{background:"#0D0D0F",border:"1px solid #1E1E24",borderRadius:8,padding:"10px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:5,transition:"all 0.2s"},dayCellDone:{background:"#FF6B351A",borderColor:"#FF6B35"},dayCellToday:{borderColor:"#FF6B35",borderWidth:2},recentCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:"14px 18px",display:"flex",alignItems:"center",cursor:"pointer",marginTop:10},card:{background:"#111114",border:"1px solid #1E1E24",borderRadius:16,padding:20},cardTitle:{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,margin:0},plansGrid:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:14},planCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:16,padding:18,position:"relative",borderTop:"3px solid"},dayChip:{width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,background:"#1A1A1F",fontSize:10,fontWeight:700},newPlanCard:{background:"#111114",border:"2px dashed #222",borderRadius:16,padding:"30px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,cursor:"pointer"},cardIconBtn:{background:"transparent",border:"none",color:"#555",cursor:"pointer",padding:5,borderRadius:6,display:"flex",transition:"all 0.15s"},stepBar:{display:"flex",alignItems:"center",marginBottom:26},stepDot:{width:32,height:32,borderRadius:"50%",background:"#1A1A1F",border:"2px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#555",flexShrink:0,transition:"all 0.3s"},stepOn:{background:"#FF6B35",border:"2px solid #FF6B35",color:"#fff"},logCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:18,padding:22},logTitle:{fontFamily:"'Syne',sans-serif",fontSize:21,fontWeight:700,margin:"0 0 20px"},formGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:13},fg:{marginBottom:13},lbl:{display:"block",fontSize:12,fontWeight:600,color:"#888",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"},inp:{width:"100%",background:"#0D0D0F",border:"1px solid #2A2A30",borderRadius:9,padding:"9px 12px",color:"#F0EDE8",fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box"},addBtn:{background:"#FF6B35",border:"none",borderRadius:9,padding:"0 12px",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center"},exBlock:{background:"#0D0D0F",borderRadius:11,padding:13,marginBottom:9},setsH:{display:"grid",gridTemplateColumns:"32px 1fr 1fr",gap:7,fontSize:10,color:"#555",fontWeight:700,textTransform:"uppercase",marginBottom:6},setRow:{display:"grid",gridTemplateColumns:"32px 1fr 1fr",gap:7,marginBottom:5,alignItems:"center"},setN:{width:22,height:22,borderRadius:"50%",background:"#1A1A1F",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#666",fontWeight:700},setInp:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"5px 6px",color:"#F0EDE8",fontSize:12,fontFamily:"'DM Sans',sans-serif",outline:"none",textAlign:"center"},addSetBtn:{background:"transparent",border:"1px dashed #2A2A30",color:"#666",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,marginTop:5,fontFamily:"'DM Sans',sans-serif"},photoBox:{border:"2px dashed #2A2A30",borderRadius:11,overflow:"hidden",cursor:"pointer"},primaryBtn:{background:"#FF6B35",border:"none",borderRadius:10,padding:"10px 18px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7,fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s"},secBtn:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:10,padding:"10px 18px",color:"#aaa",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s"},histCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:13,padding:"14px 18px",display:"flex",alignItems:"center",gap:12,cursor:"pointer"},wDetail:{background:"#111114",border:"1px solid #1E1E24",borderRadius:18,padding:22},backBtn:{background:"transparent",border:"none",color:"#888",cursor:"pointer",fontSize:14,padding:"0 0 16px",display:"flex",alignItems:"center",gap:5,fontFamily:"'DM Sans',sans-serif"},overlay2:{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:110,padding:16},modal:{background:"#111114",border:"1px solid #2A2A30",borderRadius:18,padding:22,width:"100%",maxWidth:430,maxHeight:"90vh",overflowY:"auto"},modalTitle:{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,margin:"0 0 16px"},toggle:{width:38,height:20,borderRadius:10,background:"#2A2A30",cursor:"pointer",position:"relative",transition:"background 0.3s"},toggleOn:{background:"#FF6B35"},thumb:{position:"absolute",top:3,left:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"transform 0.3s"},thumbOn:{transform:"translateX(18px)"},iconBtnS:{background:"transparent",border:"none",color:"#444",cursor:"pointer",display:"flex",padding:3},dayToggle:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"5px 10px",color:"#aaa",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",fontWeight:600,transition:"all 0.2s"},};
+const s={root:{display:"flex",minHeight:"100vh",background:"#0D0D0F",color:"#F0EDE8",fontFamily:"'DM Sans',sans-serif"},sidebar:{width:236,background:"#111114",borderRight:"1px solid #1E1E24",display:"flex",flexDirection:"column",padding:"26px 14px",position:"fixed",top:0,bottom:0,left:0,zIndex:100},logo:{display:"flex",alignItems:"center",gap:10,padding:"0 8px 26px"},logoTxt:{fontFamily:"'DM Sans',sans-serif",fontSize:23,fontWeight:800,letterSpacing:"-0.5px"},nav:{display:"flex",flexDirection:"column",gap:2,flex:1},navItem:{display:"flex",alignItems:"center",gap:11,padding:"9px 12px",borderRadius:9,border:"none",background:"transparent",color:"#888",cursor:"pointer",fontSize:15,fontWeight:500,transition:"all 0.2s",textAlign:"left"},navOn:{background:"#1E1E24",color:"#F0EDE8"},streakCard:{background:"linear-gradient(135deg,#FF6B35,#FF8C60)",borderRadius:13,padding:"13px 15px",display:"flex",alignItems:"center",gap:11},streakN:{fontWeight:800,fontSize:16,color:"#fff",fontFamily:"'DM Sans',sans-serif"},streakL:{fontSize:10,color:"rgba(255,255,255,0.8)"},main:{flex:1,minHeight:"100vh"},topBar:{position:"sticky",top:0,zIndex:9,background:"rgba(13,13,15,0.88)",backdropFilter:"blur(16px)",borderBottom:"1px solid #1E1E24",padding:"12px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"},topGreet:{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:700,color:"#666"},iconCircle:{width:36,height:36,borderRadius:"50%",background:"#1A1A1F",border:"1px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#999",position:"relative",transition:"all 0.2s"},iconOn:{background:"#252528",color:"#F0EDE8",borderColor:"#3A3A40"},badge:{position:"absolute",top:-4,right:-4,background:"#FF6B35",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #0D0D0F"},avatarBtn:{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#FF6B35,#FF8C60)",border:"2px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",transition:"all 0.2s"},avatarOn:{borderColor:"#FF6B35",boxShadow:"0 0 0 3px rgba(255,107,53,0.2)"},initials:{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:800,color:"#fff"},veil:{position:"fixed",inset:0,zIndex:8},dropdown:{position:"absolute",top:"calc(100% + 9px)",right:0,background:"#161618",border:"1px solid #2A2A30",borderRadius:14,overflow:"hidden",zIndex:50,boxShadow:"0 20px 60px rgba(0,0,0,0.6)"},ddHead:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 16px",borderBottom:"1px solid #1E1E24"},ddTitle:{fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:13},nRow:{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 16px",borderBottom:"1px solid #111116",cursor:"pointer"},nRowU:{background:"#1A1A1F"},toast:{position:"fixed",top:22,right:22,background:"#1A2A1A",border:"1px solid #2A4A2A",color:"#6EE7B7",borderRadius:11,padding:"11px 18px",display:"flex",alignItems:"center",gap:9,fontSize:15,fontWeight:600,zIndex:200},toastErr:{background:"#2A1A1A",border:"1px solid #4A2A2A",color:"#FCA5A5"},page:{padding:"20px 16px 56px",maxWidth:940,margin:"0 auto",transition:"padding 0.3s"},pageHead:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:16},pageTitle:{fontFamily:"'DM Sans',sans-serif",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-1px"},pageSub:{color:"#666",margin:"2px 0 0",fontSize:13},hero:{borderRadius:20,overflow:"hidden",position:"relative",height:300,marginBottom:26},heroBtn:{display:"inline-flex",alignItems:"center",gap:8,background:"#FF6B35",border:"none",color:"#fff",borderRadius:11,padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer",width:"fit-content",fontFamily:"'DM Sans',sans-serif"},statsRow:{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(130px, 1fr))",gap:12,marginBottom:20},statCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:16},statV:{fontFamily:"'DM Sans',sans-serif",fontSize:24,fontWeight:800,lineHeight:1},statL:{fontSize:11,color:"#666",marginTop:4},secTitle:{fontFamily:"'DM Sans',sans-serif",fontSize:18,fontWeight:700,margin:0},weekGrid:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4},dayCell:{background:"#0D0D0F",border:"1px solid #1E1E24",borderRadius:8,padding:"10px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:5,transition:"all 0.2s"},dayCellDone:{background:"#FF6B351A",borderColor:"#FF6B35"},dayCellToday:{borderColor:"#FF6B35",borderWidth:2},recentCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:14,padding:"14px 18px",display:"flex",alignItems:"center",cursor:"pointer",marginTop:10},card:{background:"#111114",border:"1px solid #1E1E24",borderRadius:16,padding:20},cardTitle:{fontFamily:"'DM Sans',sans-serif",fontSize:17,fontWeight:800,margin:0},plansGrid:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:14},planCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:16,padding:18,position:"relative",borderTop:"3px solid"},dayChip:{width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,background:"#1A1A1F",fontSize:10,fontWeight:700},newPlanCard:{background:"#111114",border:"2px dashed #222",borderRadius:16,padding:"30px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,cursor:"pointer"},cardIconBtn:{background:"transparent",border:"none",color:"#555",cursor:"pointer",padding:5,borderRadius:6,display:"flex",transition:"all 0.15s"},stepBar:{display:"flex",alignItems:"center",marginBottom:26},stepDot:{width:32,height:32,borderRadius:"50%",background:"#1A1A1F",border:"2px solid #2A2A30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#555",flexShrink:0,transition:"all 0.3s"},stepOn:{background:"#FF6B35",border:"2px solid #FF6B35",color:"#fff"},logCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:18,padding:22},logTitle:{fontFamily:"'DM Sans',sans-serif",fontSize:21,fontWeight:700,margin:"0 0 20px"},formGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:13},fg:{marginBottom:13},lbl:{display:"block",fontSize:12,fontWeight:600,color:"#888",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"},inp:{width:"100%",background:"#0D0D0F",border:"1px solid #2A2A30",borderRadius:9,padding:"9px 12px",color:"#F0EDE8",fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box"},addBtn:{background:"#FF6B35",border:"none",borderRadius:9,padding:"0 12px",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center"},exBlock:{background:"#0D0D0F",borderRadius:11,padding:13,marginBottom:9},setsH:{display:"grid",gridTemplateColumns:"32px 1fr 1fr",gap:7,fontSize:10,color:"#555",fontWeight:700,textTransform:"uppercase",marginBottom:6},setRow:{display:"grid",gridTemplateColumns:"32px 1fr 1fr",gap:7,marginBottom:5,alignItems:"center"},setN:{width:22,height:22,borderRadius:"50%",background:"#1A1A1F",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#666",fontWeight:700},setInp:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"5px 6px",color:"#F0EDE8",fontSize:12,fontFamily:"'DM Sans',sans-serif",outline:"none",textAlign:"center"},addSetBtn:{background:"transparent",border:"1px dashed #2A2A30",color:"#666",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,marginTop:5,fontFamily:"'DM Sans',sans-serif"},photoBox:{border:"2px dashed #2A2A30",borderRadius:11,overflow:"hidden",cursor:"pointer"},primaryBtn:{background:"#FF6B35",border:"none",borderRadius:10,padding:"10px 18px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7,fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s"},secBtn:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:10,padding:"10px 18px",color:"#aaa",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s"},histCard:{background:"#111114",border:"1px solid #1E1E24",borderRadius:13,padding:"14px 18px",display:"flex",alignItems:"center",gap:12,cursor:"pointer"},wDetail:{background:"#111114",border:"1px solid #1E1E24",borderRadius:18,padding:22},backBtn:{background:"transparent",border:"none",color:"#888",cursor:"pointer",fontSize:14,padding:"0 0 16px",display:"flex",alignItems:"center",gap:5,fontFamily:"'DM Sans',sans-serif"},overlay2:{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:110,padding:16},modal:{background:"#111114",border:"1px solid #2A2A30",borderRadius:18,padding:22,width:"100%",maxWidth:430,maxHeight:"90vh",overflowY:"auto"},modalTitle:{fontFamily:"'DM Sans',sans-serif",fontSize:20,fontWeight:800,margin:"0 0 16px"},toggle:{width:38,height:20,borderRadius:10,background:"#2A2A30",cursor:"pointer",position:"relative",transition:"background 0.3s"},toggleOn:{background:"#FF6B35"},thumb:{position:"absolute",top:3,left:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"transform 0.3s"},thumbOn:{transform:"translateX(18px)"},iconBtnS:{background:"transparent",border:"none",color:"#444",cursor:"pointer",display:"flex",padding:3},dayToggle:{background:"#1A1A1F",border:"1px solid #2A2A30",borderRadius:6,padding:"5px 10px",color:"#aaa",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",fontWeight:600,transition:"all 0.2s"},};
 
-const css=`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{margin:0;background:#0D0D0F;}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:#111114;}::-webkit-scrollbar-thumb{background:#2A2A30;border-radius:3px;}.pageEnter{animation:pageEnter 0.4s cubic-bezier(0.16,1,0.3,1) both;}@keyframes pageEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}.fadeIn{animation:fadeIn 0.3s ease both;}.dropIn{animation:dropIn 0.25s cubic-bezier(0.16,1,0.3,1) both;}@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}@keyframes dropIn{from{opacity:0;transform:translateY(-8px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}.statCard{transition:transform 0.2s,box-shadow 0.2s;}.statCard:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.4);}.planCard{transition:transform 0.2s,box-shadow 0.2s;}.planCard:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,0.5);}.histCard{transition:background 0.15s,border-color 0.15s;}.histCard:hover{background:#161618 !important;border-color:#2A2A30 !important;}.recentCard{transition:background 0.15s;cursor:pointer;}.recentCard:hover{background:#161618 !important;}.notifRow:hover{background:#1E1E22 !important;}.avCircle:hover .avOverlay{opacity:1 !important;}.iconBtn:hover{background:#252528 !important;color:#F0EDE8 !important;}.markAllBtn{background:transparent;border:none;color:#FF6B35;cursor:pointer;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;}.profEditBtn:hover{color:#F0EDE8 !important;}.cardIconBtn:hover{background:#1A1A1F !important;color:#F0EDE8 !important;}.colorSwatch:hover{transform:scale(1.25);}
+const css=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{margin:0;background:#0D0D0F;}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:#111114;}::-webkit-scrollbar-thumb{background:#2A2A30;border-radius:3px;}.pageEnter{animation:pageEnter 0.4s cubic-bezier(0.16,1,0.3,1) both;}@keyframes pageEnter{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}.fadeIn{animation:fadeIn 0.3s ease both;}.dropIn{animation:dropIn 0.25s cubic-bezier(0.16,1,0.3,1) both;}@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}@keyframes dropIn{from{opacity:0;transform:translateY(-8px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}.statCard{transition:transform 0.2s,box-shadow 0.2s;}.statCard:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.4);}.planCard{transition:transform 0.2s,box-shadow 0.2s;}.planCard:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,0.5);}.histCard{transition:background 0.15s,border-color 0.15s;}.histCard:hover{background:#161618 !important;border-color:#2A2A30 !important;}.recentCard{transition:background 0.15s;cursor:pointer;}.recentCard:hover{background:#161618 !important;}.notifRow:hover{background:#1E1E22 !important;}.avCircle:hover .avOverlay{opacity:1 !important;}.iconBtn:hover{background:#252528 !important;color:#F0EDE8 !important;}.markAllBtn{background:transparent;border:none;color:#FF6B35;cursor:pointer;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;}.profEditBtn:hover{color:#F0EDE8 !important;}.cardIconBtn:hover{background:#1A1A1F !important;color:#F0EDE8 !important;}.colorSwatch:hover{transform:scale(1.25);}
   .docCard:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,0.5);}
   .docCard:active{cursor:grabbing;}
   .pdfOverlay:hover{background:rgba(0,0,0,0.15) !important;}
