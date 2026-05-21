@@ -954,7 +954,7 @@ function FitForge(){
           {lastSync && <div style={{fontSize:10, color:"#444", textAlign:"center", padding:"0 10px"}}>Cloud Sync: {lastSync.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>}
         </div>
       </aside>
-      <main style={{...s.main, marginLeft: isMobile ? 0 : 236}}>
+      <main style={{...s.main, marginLeft: isMobile ? 0 : 236, minWidth: 0, maxWidth: isMobile ? "100%" : "none", overflowX: isMobile ? "hidden" : "visible"}}>
         <div style={s.topBar}>
           <div style={{display:"flex",alignItems:"center",gap:12, flex: 1, minWidth: 0}}>
             {isMobile && <button style={{...s.iconCircle, border:"none", background:"transparent", color:"#F0EDE8", flexShrink: 0}} onClick={()=>setSidebarOpen(o=>!o)}>{sidebarOpen ? IC.x : IC.menu}</button>}
@@ -1216,10 +1216,10 @@ function ProgressPage({data,setData,user,notify,isMobile}){
     notify("Maße gelöscht");
   };
 
-  return(<div style={s.page}>
-    <div style={s.pageHead}>
+  return(<div style={{...s.page, padding: isMobile ? "10px 10px 80px" : s.page.padding, width: "100%", maxWidth: "100%", boxSizing: "border-box", minWidth: 0, overflowX: "hidden"}}>
+    <div style={isMobile ? {display: "flex", flexDirection: "column", gap: 12, marginBottom: 20, width: "100%"} : s.pageHead}>
       <div><h1 style={s.pageTitle}>Fortschritt</h1><p style={s.pageSub}>Verfolge deine körperliche Entwicklung</p></div>
-      <div style={isMobile ? {display: "flex", gap: 8, maxWidth: "100%", overflowX: "auto", paddingBottom: 4, msOverflowStyle: "none", scrollbarWidth: "none"} : {display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center"}}>
+      <div style={isMobile ? {display: "flex", gap: 8, width: "100%", overflowX: "auto", paddingBottom: 6, msOverflowStyle: "none", scrollbarWidth: "none", WebkitOverflowScrolling: "touch"} : {display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center"}}>
         <button style={{...s.secBtn, flex: "0 0 auto", padding: isMobile ? "10px 14px" : s.secBtn.padding, display: "flex", justifyContent: "center", alignItems: "center", gap: 6, fontSize: isMobile ? 13 : 14}} onClick={()=>setShowHistory(true)}>
           {IC.history} Verlauf
         </button>
@@ -1237,7 +1237,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
     </div>
 
     {compareMode && (
-      <div style={{...s.card, marginBottom:22, border:"1px solid #FF6B35"}} className="dropIn">
+      <div style={isMobile ? { ...s.card, width: "100%", minWidth: 0, padding: 16, marginBottom: 22, border: "1px solid #FF6B35", maxWidth: "100%", boxSizing: "border-box" } : { ...s.card, marginBottom: 22, border: "1px solid #FF6B35" }} className="dropIn">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <h3 style={s.cardTitle}>Foto-Vergleich</h3>
           <div style={{fontSize:12,color:"#888"}}>Wähle 2 Fotos aus ({compareIds.length}/2)</div>
@@ -1258,7 +1258,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
       </div>
     )}
 
-    <div style={{...s.card, marginBottom:22}}>
+    <div style={isMobile ? { ...s.card, width: "100%", minWidth: 0, padding: 16, marginBottom: 22, maxWidth: "100%", boxSizing: "border-box", overflow: "hidden" } : { ...s.card, marginBottom: 22 }}>
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, paddingBottom:8, borderBottom:"1px solid #1E1E24", flexWrap: "wrap", gap: isMobile ? 12 : 0}}>
         <div style={{flex:1, minWidth: isMobile ? "30%" : "auto", textAlign: isMobile ? "left" : "left"}}>
           <div style={{fontSize:9, color:"#666", fontWeight:800, textTransform:"uppercase", letterSpacing:1}}>MAXIMUM</div>
@@ -1277,7 +1277,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
       
       <div style={{marginTop:24,borderTop:"1px solid rgba(255,255,255,0.06)",paddingTop:20}}>
           <div style={{fontSize:11,fontWeight:800,color:"#666",textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Letzte Einträge</div>
-          <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8}}>
+          <div style={{display:"flex",gap:12,overflowX:"auto",width:"100%",paddingBottom:8,WebkitOverflowScrolling:"touch"}}>
             {weightHistory.sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5).map(h=>(
               <div key={h.date} style={{background:"rgba(255,255,255,0.03)",padding:"10px 16px",borderRadius:12,border:"1px solid rgba(255,255,255,0.06)",minWidth:120,display:"flex",justifyContent:"space-between",alignItems:"center",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}>
                 <div>
@@ -1291,10 +1291,10 @@ function ProgressPage({data,setData,user,notify,isMobile}){
           </div>
       </div>
     </div>
-    <div style={s.card}>
+    <div style={isMobile ? { ...s.card, width: "100%", minWidth: 0, padding: 16, maxWidth: "100%", boxSizing: "border-box" } : s.card}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <h3 style={s.cardTitle}>Fotostrecke</h3>
-        <button style={s.primaryBtn} onClick={()=>setShowUploadPhoto(true)}>{IC.camera} Foto hochladen</button>
+        <button style={isMobile ? { ...s.primaryBtn, padding: "8px 12px", fontSize: 13 } : s.primaryBtn} onClick={()=>setShowUploadPhoto(true)}>{IC.camera} Foto hochladen</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${isMobile ? 110 : 160}px,1fr))`,gap:isMobile ? 10 : 14}}>
         {photos.map(p=>(
@@ -1315,7 +1315,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
     {activePhoto && <PhotoDetailModal photo={activePhoto} onClose={() => setActivePhoto(null)} isMobile={isMobile} />}
 
     <div style={{display:"grid",gridTemplateColumns:"1fr",gap:18,marginBottom:22,marginTop:22}}>
-      <div style={s.card}>
+      <div style={isMobile ? { ...s.card, width: "100%", minWidth: 0, padding: 16, maxWidth: "100%", boxSizing: "border-box" } : s.card}>
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18}}>
           <div style={{display:"flex", alignItems:"center", gap:12}}>
             <h3 style={s.cardTitle}>Aktuelle Körpermaße</h3>
@@ -1331,7 +1331,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
         
         {showMeasureDetails && (
           measurements.length > 0 ? (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))",gap:12}} className="dropIn">
+            <div style={{display:"grid",gridTemplateColumns:`repeat(auto-fill, minmax(${isMobile ? "110px" : "140px"}, 1fr))`,gap:12}} className="dropIn">
               {Object.entries(measurements[0].values).map(([k,v])=>(
                 <div key={k} style={{background:"rgba(255,255,255,0.03)",padding:"12px 14px",borderRadius:12,border:"1px solid rgba(255,255,255,0.06)",display:"flex",flexDirection:"column",gap:4}}>
                   <div style={{color:"#666",fontSize:10,fontWeight:700,textTransform:"uppercase"}}>{k.replace(" (cm)","")}</div>
@@ -2418,24 +2418,24 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
       </div>
     </div>
     <div style={{...s.stepBar, gap: isMobile ? 4 : 8}}>{[1,2,3].map(n=>(<div key={n} style={{display:"flex",alignItems:"center",flex:1}}><div style={{...s.stepDot, width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, fontSize: isMobile ? 12 : 14, ...(step>=n?s.stepOn:{})}}>{step>n?IC.check:n}</div>{n<3&&<div style={{flex:1,height:2,background:step>n?"#FF6B35":"#1E1E24",transition:"background 0.3s"}}/>}</div>))}</div>
-    <div style={plan ? {...s.logCard, position: "relative", borderTop: `6px solid ${plan.color}`, borderRight: "none", borderBottom: "none", borderLeft: "none", paddingTop: 46, padding: isMobile ? 16 : 24} : {...s.logCard, padding: isMobile ? 16 : 24}}>
+    <div style={plan ? {...s.logCard, position: "relative", borderTop: `6px solid ${plan.color}`, borderRight: "none", borderBottom: "none", borderLeft: "none", paddingTop: 46, padding: isMobile ? 16 : 24, width: "100%", maxWidth: "100%", boxSizing: "border-box", minWidth: 0} : {...s.logCard, padding: isMobile ? 16 : 24, width: "100%", maxWidth: "100%", boxSizing: "border-box", minWidth: 0}}>
       {plan && <div style={{position: "absolute", top: 0, left: 24, background: plan.color, padding: "4px 14px", borderRadius: "0 0 10px 10px", color: "#000", fontSize: 11, fontWeight: 900, textTransform: "uppercase"}}>{plan.name}</div>}
 
       {step===1&&<div className="fadeIn">
         <h3 style={s.logTitle}>Plan & Datum</h3>
-        <div style={{display:"flex", flexDirection: isMobile ? "column" : "row", gap:14, marginBottom:20, alignItems: isMobile ? "stretch" : "flex-end"}}>
+        <div style={{display:"flex", flexDirection: "row", gap: isMobile ? 8 : 14, marginBottom:20, alignItems: "flex-end"}}>
           <div style={{flex: 1, minWidth: 0}}>
             <label style={s.lbl}>Trainingsplan</label>
             <div style={{position: "relative"}}>
-              <select className="customSelect" style={{...s.inp, display: "block", height: 48, width: "100%", borderColor: plan?.color || "rgba(255,255,255,0.12)", color: plan?.color || "#F0EDE8", background: plan ? `linear-gradient(135deg, ${plan.color}18 0%, rgba(18,18,24,0.6) 100%)` : "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)", paddingRight: 32}} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
+              <select className="customSelect" style={{...s.inp, display: "block", height: 48, width: "100%", borderColor: plan?.color || "rgba(255,255,255,0.12)", color: plan?.color || "#F0EDE8", background: plan ? `linear-gradient(135deg, ${plan.color}18 0%, rgba(18,18,24,0.6) 100%)` : "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)", paddingRight: 32, fontSize: isMobile ? 13 : 14, paddingLeft: isMobile ? 10 : 12}} value={planId||""} onChange={e=>setPlanId(e.target.value)}>
                 <option value="">Kein Plan</option>
                 {data.plans.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           </div>
-          <div style={{flex: 1, minWidth: 0}}>
+          <div style={{flex: isMobile ? "0 0 135px" : 1, minWidth: 0}}>
             <label style={s.lbl}>Datum</label>
-            <input style={{...s.inp, display: "block", height: 48, width: "100%", minWidth: 0, boxSizing: "border-box", appearance: "none", fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", borderColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+            <input style={{...s.inp, display: "block", height: 48, width: "100%", minWidth: 0, boxSizing: "border-box", appearance: "none", fontSize: isMobile ? 13 : 14, fontFamily: "'DM Sans', sans-serif", background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", borderColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)", padding: isMobile ? "0 8px" : "0 12px", colorScheme: "dark"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
           </div>
         </div>
 
@@ -2494,8 +2494,8 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           </div>
         )}
 
-        {plan&&<div style={{background:"rgba(255,255,255,0.02)",borderRadius:12,padding:16,marginBottom:20,border:"1px solid rgba(255,255,255,0.06)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}}>
-          {exercises.map((e,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:i<exercises.length-1?"1px solid #1A1A1F":"none"}}>
+        {plan&&<div style={{background:"rgba(255,255,255,0.02)",borderRadius:12,padding:isMobile ? 12 : 16,marginBottom:20,border:"1px solid rgba(255,255,255,0.06)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)", width: "100%", maxWidth: "100%", boxSizing: "border-box", minWidth: 0}}>
+          {exercises.map((e,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:i<exercises.length-1?"1px solid #1A1A1F":"none", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box"}}>
             {hiitMode && (
               <div style={{position:"relative", display:"flex", alignItems:"center"}}>
                 <input style={{width:54, height:44, background: "#FFD16608", color: "#FFD166CC", padding: "4px 4px 4px 4px", borderRadius: 10, fontSize: 10, fontWeight: 800, border: "1px solid #FFD1661F", textAlign: "center", outline: "none"}} value={hiitDurations[i]||""} onFocus={e=>e.target.select()} onChange={val=>{setHiitDurations({...hiitDurations,[i]:parseInt(val.target.value)||0});}} placeholder="30"/>
@@ -2505,9 +2505,9 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
             <div style={{width:44,height:44,background:"rgba(255,255,255,0.05)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
               {e.photo ? <img src={e.photo} style={{width:"100%",height:"100%",objectFit:"cover"}}/> : IC.dumbbell}
             </div>
-            <div style={{flex:1, display:"flex", justifyContent:"space-between", alignItems:"center", gap: 10, minWidth:0}}>
+            <div style={{flex:1, display:"flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", justifyContent:"space-between", gap: isMobile ? 8 : 10, minWidth:0}}>
               <div style={{fontSize:14, fontWeight:700, color:"#F0EDE8", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{e.name}</div>
-              <div style={{display:"flex", gap:6, alignItems:"center", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end"}}>
+              <div style={{display:"flex", gap:6, alignItems:"center", flexWrap: "wrap", justifyContent: isMobile ? "flex-start" : "flex-end", width: isMobile ? "100%" : "auto", minWidth: 0}}>
                 {getExFields(e).map(f => (
                   <div key={f.key} style={{position:"relative", display:"flex", alignItems:"center"}}>
                     <input 
