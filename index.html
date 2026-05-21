@@ -1219,7 +1219,7 @@ function ProgressPage({data,setData,user,notify,isMobile}){
   return(<div style={s.page}>
     <div style={s.pageHead}>
       <div><h1 style={s.pageTitle}>Fortschritt</h1><p style={s.pageSub}>Verfolge deine körperliche Entwicklung</p></div>
-      <div style={isMobile ? {display: "flex", gap: 8, width: "100%", overflowX: "auto", paddingBottom: 4, msOverflowStyle: "none", scrollbarWidth: "none"} : {display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center"}}>
+      <div style={isMobile ? {display: "flex", gap: 8, maxWidth: "100%", overflowX: "auto", paddingBottom: 4, msOverflowStyle: "none", scrollbarWidth: "none"} : {display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center"}}>
         <button style={{...s.secBtn, flex: "0 0 auto", padding: isMobile ? "10px 14px" : s.secBtn.padding, display: "flex", justifyContent: "center", alignItems: "center", gap: 6, fontSize: isMobile ? 13 : 14}} onClick={()=>setShowHistory(true)}>
           {IC.history} Verlauf
         </button>
@@ -2423,7 +2423,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
 
       {step===1&&<div className="fadeIn">
         <h3 style={s.logTitle}>Plan & Datum</h3>
-        <div style={{display:"flex", gap:14, marginBottom:20, alignItems: "flex-end"}}>
+        <div style={{display:"flex", flexDirection: isMobile ? "column" : "row", gap:14, marginBottom:20, alignItems: isMobile ? "stretch" : "flex-end"}}>
           <div style={{flex: 1, minWidth: 0}}>
             <label style={s.lbl}>Trainingsplan</label>
             <div style={{position: "relative"}}>
@@ -2435,24 +2435,24 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           </div>
           <div style={{flex: 1, minWidth: 0}}>
             <label style={s.lbl}>Datum</label>
-            <input style={{...s.inp, display: "block", height: 48, width: "100%", minWidth: 0, boxSizing: "border-box", appearance: "none", background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", borderColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+            <input style={{...s.inp, display: "block", height: 48, width: "100%", minWidth: 0, boxSizing: "border-box", appearance: "none", fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", borderColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
           </div>
         </div>
 
         <div style={{display:"flex", gap:10, marginBottom:20}}>
           <button 
-            style={{flex: 1, height: 74, borderRadius: 16, background: repeatRounds ? "linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(59,130,246,0.08) 100%)" : "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.5) 100%)", border: `1px solid ${repeatRounds ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.1)"}`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: repeatRounds ? "inset 0 1px 0 rgba(59,130,246,0.25), 0 4px 16px rgba(59,130,246,0.15)" : "inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 12px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", cursor: "pointer"}}
+            style={{flex: 1, height: 48, borderRadius: 12, background: repeatRounds ? "linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(59,130,246,0.08) 100%)" : "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.5) 100%)", border: `1px solid ${repeatRounds ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.1)"}`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: repeatRounds ? "inset 0 1px 0 rgba(59,130,246,0.25), 0 4px 16px rgba(59,130,246,0.15)" : "inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 12px rgba(0,0,0,0.2)", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", cursor: "pointer"}}
             onClick={() => setRepeatRounds(!repeatRounds)}
           >
             <span style={{color: repeatRounds ? "#3B82F6" : "#444", display: "flex"}}>{IC.repeat}</span>
-            <span style={{fontSize: 11, fontWeight: 900, color: repeatRounds ? "#3B82F6" : "#666", textTransform: "uppercase", letterSpacing: 0.5}}>Wiederholen</span>
+            <span style={{fontSize: 12, fontWeight: 800, color: repeatRounds ? "#3B82F6" : "#666", textTransform: "uppercase", letterSpacing: 0.5}}>Wiederholen</span>
           </button>
           <button 
-            style={{flex: 1, height: 74, borderRadius: 16, background: hiitMode ? "linear-gradient(135deg, rgba(255,209,102,0.2) 0%, rgba(255,209,102,0.06) 100%)" : "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.5) 100%)", border: `1px solid ${hiitMode ? "rgba(255,209,102,0.5)" : "rgba(255,255,255,0.1)"}`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: hiitMode ? "inset 0 1px 0 rgba(255,209,102,0.25), 0 4px 16px rgba(255,209,102,0.12)" : "inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 12px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", cursor: "pointer"}}
+            style={{flex: 1, height: 48, borderRadius: 12, background: hiitMode ? "linear-gradient(135deg, rgba(255,209,102,0.2) 0%, rgba(255,209,102,0.06) 100%)" : "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.5) 100%)", border: `1px solid ${hiitMode ? "rgba(255,209,102,0.5)" : "rgba(255,255,255,0.1)"}`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: hiitMode ? "inset 0 1px 0 rgba(255,209,102,0.25), 0 4px 16px rgba(255,209,102,0.12)" : "inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 12px rgba(0,0,0,0.2)", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", cursor: "pointer"}}
             onClick={() => setHiitMode(!hiitMode)}
           >
             <span style={{color: hiitMode ? "#FFD166" : "#444", display: "flex"}}>{IC.bolt}</span>
-            <span style={{fontSize: 11, fontWeight: 900, color: hiitMode ? "#FFD166" : "#666", textTransform: "uppercase", letterSpacing: 0.5}}>HIIT Modus</span>
+            <span style={{fontSize: 12, fontWeight: 800, color: hiitMode ? "#FFD166" : "#666", textTransform: "uppercase", letterSpacing: 0.5}}>HIIT Modus</span>
           </button>
         </div>
 
@@ -2556,7 +2556,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           }
           playBeep(440, 0.8, 0.15);
           setTimeout(() => playBeep(554, 0.8, 0.15), 200);
-        }}>▶ Training starten</button>
+        }}>Training starten</button>
 
         {hiitMode && (
           <div style={{marginTop: 15, background: "rgba(255,255,255,0.02)", padding: 16, borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)"}}>
@@ -2869,7 +2869,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
                             toggleSetDone(curEx, finalSi);
                           }}
                         >
-                           {setsInViewArray.length > 1 ? "Sätze fertig ✓" : "Satz fertig ✓"}
+                           {setsInViewArray.length > 1 ? "Sätze fertig" : "Satz fertig"}
                         </button>
                       )}
                       
@@ -2877,7 +2877,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
                         style={{...s.primaryBtn, flex: 1, background: "#FF6B3515", border: "2px solid #FF6B35", color: "#FF6B35", height: 50, padding: 0, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", width: !showFinishSet ? "100%" : "auto"}} 
                         onClick={goNext}
                       >
-                        {isLast ? "Training beenden ✓" : "Nächste →"}
+                        {isLast ? "Training beenden" : "Nächste"}
                       </button>
                     </div>
                   );
@@ -2891,7 +2891,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
               )}
             </div>
           </div>
-          <button style={{width:"100%",marginTop:15,background:"#EF476F15",border:"2px solid #EF476F",borderRadius:10,padding:12,color:"#EF476F"}} onClick={()=>setShowEndModal(true)}>⏹ Abbrechen</button>
+          <button style={{width:"100%",marginTop:15,background:"#EF476F15",border:"2px solid #EF476F",borderRadius:10,padding:12,color:"#EF476F"}} onClick={()=>setShowEndModal(true)}>Abbrechen</button>
         </>}
 
         {hiitConfig && (
@@ -2904,19 +2904,19 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           </div>
         )}
 
-        {showEndModal && (
-          <div style={s.overlay2} onClick={()=>setShowEndModal(false)}>
-            <div style={{...s.modal, maxWidth:380, padding:25, borderRadius: 24, textAlign: "center"}} onClick={e=>e.stopPropagation()}>
+        {showEndModal && ReactDOM.createPortal(
+          <div style={{...s.overlay2, zIndex: 1000}} onClick={()=>setShowEndModal(false)}>
+            <div style={{...s.modal, maxWidth:380, padding:25, borderRadius: 24, textAlign: "center", background:"rgba(16,16,22,0.97)",backdropFilter:"blur(32px) saturate(180%)",WebkitBackdropFilter:"blur(32px) saturate(180%)",border:"1px solid rgba(255,255,255,0.2)",boxShadow:"inset 0 1px 1px rgba(255,255,255,0.1), 0 32px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.05)"}} onClick={e=>e.stopPropagation()}>
               <div style={{width: 64, height: 64, background: "#EF476F20", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", color: "#EF476F"}}><span style={{fontSize: 28}}>⏹</span></div>
               <h3 style={{...s.modalTitle, fontSize: 22, marginBottom: 10}}>Training beenden?</h3>
               <p style={{fontSize: 14, color: "#888", marginBottom: 25, lineHeight: 1.5}}>Möchtest du das aktuelle Training abbrechen oder vorzeitig mit den bisherigen Fortschritten speichern?</p>
               <div style={{display: "flex", flexDirection: "column", gap: 10}}>
-                <button style={{...s.primaryBtn, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} onClick={save}>✓ Speichern & Beenden</button>
-                <button style={{...s.primaryBtn, background: "#EF476F15", border: "2px solid #EF476F", color: "#EF476F", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} onClick={()=>{setStep(1); setTimer(0); setRunning(false); setShowEndModal(false); setActiveWorkout(null); notify("Training verworfen", "info");}}>🗑 Abbrechen & Löschen</button>
-                <button style={{...s.secBtn, background: "#F0EDE810", border: "2px solid #F0EDE855", color: "#F0EDE8", fontSize: 13, marginTop: 5, padding: "10px", borderRadius: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6}} onClick={()=>setShowEndModal(false)}>← Zurück zum Training</button>
+                <button style={{...s.primaryBtn, background: "#06D6A015", border: "2px solid #06D6A0", color: "#06D6A0", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} onClick={save}>Speichern & Beenden</button>
+                <button style={{...s.primaryBtn, background: "#EF476F15", border: "2px solid #EF476F", color: "#EF476F", fontSize: 13, padding: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8}} onClick={()=>{setStep(1); setTimer(0); setRunning(false); setShowEndModal(false); setActiveWorkout(null); notify("Training verworfen", "info");}}>Abbrechen & Löschen</button>
+                <button style={{...s.secBtn, background: "#F0EDE810", border: "2px solid #F0EDE855", color: "#F0EDE8", fontSize: 13, marginTop: 5, padding: "10px", borderRadius: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6}} onClick={()=>setShowEndModal(false)}>Zurück zum Training</button>
               </div>
             </div>
-          </div>
+          </div>, document.body
         )}
       </div>}
 
@@ -6226,6 +6226,9 @@ const s={
   setRow:{display:"grid",gridTemplateColumns:"32px 1fr 1fr",gap:7,marginBottom:5,alignItems:"center"},
   setN:{width:22,height:22,borderRadius:"50%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#888",fontWeight:700},
   setInp:{
+    width:"100%",
+    boxSizing:"border-box",
+    minWidth:0,
     background:"rgba(255, 255, 255, 0.04)",
     border:"1px solid rgba(255, 255, 255, 0.08)",
     borderRadius:6,
