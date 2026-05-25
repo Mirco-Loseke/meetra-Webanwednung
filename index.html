@@ -3106,7 +3106,7 @@ function LogWorkout({user,setUser,data,setData,notify,prs,onSavePR,library,activ
           <div style={{fontSize:32,fontWeight:800,color:"#06D6A0",marginBottom:10}}>Geschafft! 🎉</div>
           <div style={{fontSize:14,color:"#888"}}>Dauer: {fmtTimer(timer)} | Übungen: {exercises.length}</div>
         </div>
-        <div style={{display: "flex", gap: 12}}><button style={{...s.primaryBtn, flex: 2}} onClick={save}>🎉 Training speichern</button><button style={{...s.primaryBtn, flex: 1, background: "#EF476F15", border: "2px solid #EF476F", color: "#EF476F"}} onClick={()=>{setStep(1); setTimer(0); setRunning(false); setActiveWorkout(null); notify("Training verworfen", "info");}}>🗑️ Verwerfen</button></div>
+        <div style={{display: "flex", gap: 12}}><button style={{...s.primaryBtn, flex: 2}} onClick={save}>🎉 Training speichern</button><button style={{...s.primaryBtn, flex: 1, background: "#EF476F15", border: "2px solid #EF476F", color: "#EF476F"}} onClick={()=>{if(window.confirm("Möchtest du das Training wirklich verwerfen?")) {setStep(1); setTimer(0); setRunning(false); setActiveWorkout(null); notify("Training verworfen", "info");}}}>🗑️ Verwerfen</button></div>
       </div>}
     </div>
   </div>);
@@ -6372,7 +6372,7 @@ function AuthScreen(){
 
   return(
     <div style={{minHeight:"100vh",background:"radial-gradient(circle at 50% 0%, #161622 0%, #0A0A0E 60%, #050507 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'DM Sans',sans-serif",position:"relative",overflow:"hidden"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');input:focus{border-color:#FF6B35!important;outline:none;}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');input:focus{border-color:#FF6B35!important;outline:none;} input[type="date"]::-webkit-datetime-edit { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; } input[type="date"]::-webkit-date-and-time-value { text-align: center; margin: 0; padding: 0; display: block; }`}</style>
 
       {/* Glows for login page */}
       <div style={{position: "absolute", top: -80, right: -80, width: 320, height: 320, borderRadius: "50%", background: "radial-gradient(circle, rgba(255, 107, 53, 0.15) 0%, rgba(255, 107, 53, 0) 70%)", filter: "blur(50px)", pointerEvents: "none", zIndex: 0}} />
