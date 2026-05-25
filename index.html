@@ -2435,7 +2435,7 @@ function LogWorkout({data,setData,notify,prs,onSavePR,library,activeWorkout,setA
           </div>
           <div style={{flex: isMobile ? "0 0 135px" : 1, minWidth: 0}}>
             <label style={s.lbl}>Datum</label>
-            <input style={{...s.inp, display: "block", height: 48, width: "100%", minWidth: 0, boxSizing: "border-box", appearance: "none", fontSize: isMobile ? 13 : 14, fontFamily: "'DM Sans', sans-serif", background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", borderColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)", padding: isMobile ? "0 8px" : "0 12px", colorScheme: "dark"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+            <input style={{...s.inp, display: "block", height: 48, width: "100%", minWidth: 0, boxSizing: "border-box", appearance: "none", fontSize: isMobile ? 13 : 14, fontFamily: "'DM Sans', sans-serif", background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(18,18,24,0.6) 100%)", borderColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)", padding: isMobile ? "0 8px" : "0 12px", colorScheme: "dark", textAlign: "center"}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
           </div>
         </div>
 
