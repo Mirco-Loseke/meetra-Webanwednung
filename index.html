@@ -4112,7 +4112,28 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                     disabled={!compSel.includes(gi) && compSel.length >= 2}
                     onChange={(e) => {
                       if (e.target.checked) setCompSel([...compSel, gi]);
-                             <div key={w.id} style={{...s.histCard,padding:18, borderLeft:`5px solid ${plan?.color || "rgba(255,255,255,0.2)"}`, borderTop:"1px solid rgba(255,255,255,0.1)", borderRight:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", background:plan?`linear-gradient(135deg, ${plan.color}1A 0%, ${plan.color}08 40%, rgba(18,18,24,0.55) 100%)`:"linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 60%), rgba(18,18,24,0.5)", backdropFilter:"blur(24px) saturate(190%)", WebkitBackdropFilter:"blur(24px) saturate(190%)", boxShadow:plan?`inset 0 1px 1px rgba(255,255,255,0.1), 0 8px 32px rgba(0,0,0,0.35)`:"inset 0 1px 1px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)", flexDirection:"column", alignItems:"stretch", borderRadius:16, position:"relative", overflow:"visible"}} className="histCard" onClick={()=>setSelWO(w.id)}>
+                      else setCompSel(compSel.filter(id => id !== gi));
+                    }}
+                    style={{width: 20, height: 20, accentColor: "#FFD166", cursor: "pointer"}}
+                  />
+                )}
+                <span style={{fontSize:24,fontWeight:900,fontFamily:"'DM Sans',sans-serif",color:"#F0EDE8"}}>KW {group.wn}</span>
+                <span style={{fontSize:14,fontWeight:700,color:"#666"}}>({group.dateRange})</span>
+              </div>
+              {!compMode && (
+                <button 
+                  style={{...s.secBtn, padding:"7px 15px", fontSize:12, fontWeight:800, display:"flex", alignItems:"center", gap:8, background:"rgba(255,107,53,0.15)", border:"1px solid #FF6B35", color:"#FF6B35", textShadow:"0 0 10px rgba(255,107,53,0.5)", boxShadow:"0 0 15px rgba(255,107,53,0.4), inset 0 0 10px rgba(255,107,53,0.2)", borderRadius:12}}
+                  onClick={()=>setWeeklyReport(group)}
+                >
+                  {IC.stats} Bericht
+                </button>
+              )}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              {group.workouts.map(w=>{
+                const plan=data.plans.find(p=>p.id===w.planId);
+                return(
+                  <div key={w.id} style={{...s.histCard,padding:18, borderLeft:`5px solid ${plan?.color || "rgba(255,255,255,0.2)"}`, borderTop:"1px solid rgba(255,255,255,0.1)", borderRight:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", background:plan?`linear-gradient(135deg, ${plan.color}1A 0%, ${plan.color}08 40%, rgba(18,18,24,0.55) 100%)`:"linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 60%), rgba(18,18,24,0.5)", backdropFilter:"blur(24px) saturate(190%)", WebkitBackdropFilter:"blur(24px) saturate(190%)", boxShadow:plan?`inset 0 1px 1px rgba(255,255,255,0.1), 0 8px 32px rgba(0,0,0,0.35)`:"inset 0 1px 1px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)", flexDirection:"column", alignItems:"stretch", borderRadius:16, position:"relative", overflow:"visible"}} className="histCard" onClick={()=>setSelWO(w.id)}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:isMobile?16:18,color:plan?.color || "#F0EDE8"}}>{w.name}</div>
