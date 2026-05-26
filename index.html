@@ -681,7 +681,7 @@ function FitForge(){
       
       // Merge workouts
       foundWorkouts.forEach(w => {
-        const exists = updatedData.workouts.some(existing => existing.id === w.id || existing.date === w.date);
+        const exists = updatedData.workouts.some(existing => existing.id === w.id);
         if (!exists) {
           updatedData.workouts.push(w);
           restoredCount++;
@@ -691,10 +691,17 @@ function FitForge(){
 
       // Merge plans (ignore default plans if we find better ones with same name, or just add missing)
       foundPlans.forEach(p => {
-        const exists = updatedData.plans.some(existing => existing.name === p.name);
+        const exists = updatedData.plans.some(existing => existing.id === p.id);
         if (!exists) {
-          updatedData.plans.push({...p, id: Date.now() + Math.random()});
+          updatedData.plans.push(p);
           restoredPlans++;
+        } else {
+          // If a plan with same ID exists but the recovered one has a different name or exercises (e.g., they customized a default plan), we overwrite it.
+          const existingIdx = updatedData.plans.findIndex(e => e.id === p.id);
+          if (existingIdx !== -1 && JSON.stringify(updatedData.plans[existingIdx]) !== JSON.stringify(p)) {
+             updatedData.plans[existingIdx] = p;
+             restoredPlans++;
+          }
         }
       });
 
