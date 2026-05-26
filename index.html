@@ -519,13 +519,13 @@ const ls = (k, df) => { try { const r = localStorage.getItem("ff_" + k); const p
 
 function FitForge(){
   const [view,setView]=useState("dashboard");
-  const [data,setData]=useState(()=>ls("data", defaultData));
-  const [user,setUser]=useState(()=>ls("user", defaultUser));
-  const [prs,setPrs]=useState(()=>ls("prs", defaultPRs));
-  const [nutrition,setNutrition]=useState(()=>ls("nutrition", {}));
+  const [data,setData]=useState(defaultData);
+  const [user,setUser]=useState(defaultUser);
+  const [prs,setPrs]=useState(defaultPRs);
+  const [nutrition,setNutrition]=useState({});
   const [library,setLibrary]=useState(()=>ls("library", []));
-  const [weekPlans,setWeekPlans]=useState(()=>ls("weekPlans", {}));
-  const [favFoods,setFavFoods]=useState(()=>ls("favFoods", []));
+  const [weekPlans,setWeekPlans]=useState({});
+  const [favFoods,setFavFoods]=useState([]);
   
   const [authUser,setAuthUser]=useState(null);
   const [isMobile,setIsMobile]=useState(window.innerWidth<=1024);
@@ -600,6 +600,71 @@ function FitForge(){
         showToast("Synchronisierung erfolgreich! 🔄");
     } catch(e) {
         showToast("Sync-Fehler: " + e.message, "error");
+    }
+  };
+
+  const rescueWorkouts = () => {
+    if (!authUser) return;
+    try {
+      let foundWorkouts = [];
+      let foundName = null;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("ff_") && k.endsWith("_data") && k !== `ff_${authUser.uid}_data`) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.workouts && Array.isArray(parsed.workouts)) {
+                const recent = parsed.workouts.filter(w => {
+                  const d = new Date(w.date);
+                  return (Date.now() - d.getTime()) < 7 * 24 * 60 * 60 * 1000;
+                });
+                foundWorkouts = [...foundWorkouts, ...recent];
+              }
+            }
+          } catch(e) {}
+        }
+        if (k && k.startsWith("ff_") && k.endsWith("_user") && k !== `ff_${authUser.uid}_user`) {
+           try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                 const p = JSON.parse(raw);
+                 if (p && p.firstName && (!user.firstName || user.firstName.trim() === "")) {
+                    foundName = p;
+                 }
+              }
+           } catch(e) {}
+        }
+      }
+      
+      let updatedData = { ...data };
+      let restoredCount = 0;
+      
+      foundWorkouts.forEach(w => {
+        const exists = updatedData.workouts.some(existing => existing.id === w.id || existing.date === w.date);
+        if (!exists) {
+          updatedData.workouts.push(w);
+          restoredCount++;
+        }
+      });
+      
+      if (restoredCount > 0) {
+        updatedData.workouts.sort((a,b) => new Date(a.date) - new Date(b.date));
+        setData(updatedData);
+      }
+      
+      if (foundName) {
+         setUser(u => ({...u, firstName: foundName.firstName || u.firstName, lastName: foundName.lastName || u.lastName, weight: foundName.weight || u.weight, height: foundName.height || u.height}));
+      }
+
+      if (restoredCount > 0 || foundName) {
+         showToast(`Rettung erfolgreich! ${restoredCount} Training(s) & Profil-Daten wiederhergestellt.`);
+      } else {
+         showToast("Keine fehlenden Trainings oder Profil-Daten im lokalen Speicher gefunden.", "info");
+      }
+    } catch (err) {
+      showToast("Fehler bei der Rettung: " + err.message, "error");
     }
   };
 
@@ -1079,6 +1144,10 @@ function FitForge(){
                 </button>
 
                 <div style={{padding:"8px 16px 6px",fontSize:10,color:"#444",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🔑 {authUser?.email}</div>
+                <button style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"transparent",border:"none",color:"#06D6A0",cursor:"pointer",padding:"12px 16px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}} onClick={()=>{setProfileOpen(false); rescueWorkouts();}}>
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  Daten retten
+                </button>
                 <button style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"transparent",border:"none",color:"#EF476F",cursor:"pointer",padding:"10px 16px 14px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}} onClick={async()=>{setProfileOpen(false);await window.firebaseSignOut();}}>
                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
                   Abmelden
