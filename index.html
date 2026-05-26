@@ -545,17 +545,413 @@ function FitForge(){
   const [showLoadingUI, setShowLoadingUI] = useState(false);
   const [lastSync, setLastSync] = useState(null);
   const [weeklyReport, setWeeklyReport] = useState(null);
+
+  // ── Deep Rescue Scan State ──────────────────────────────────────────────
+  const [rescueModalOpen, setRescueModalOpen] = useState(false);
+  const [rescueScanProgress, setRescueScanProgress] = useState("idle"); // idle, scanning, done
+  const [rescuedWorkouts, setRescuedWorkouts] = useState([]);
+  const [rescuedPlans, setRescuedPlans] = useState([]);
+  const [rescuedWeight, setRescuedWeight] = useState([]);
+  const [rescueLog, setRescueLog] = useState([]);
+
+  // ── Sync Safety State ───────────────────────────────────────────────────
+  const loadedKeysRef = useRef({
+    data: false,
+    user: false,
+    prs: false,
+    nutrition: false,
+    weekPlans: false,
+    favFoods: false
+  });
+
+  const deserializeFirestoreValue = (val) => {
+    if (!val || typeof val !== 'object') return val;
+    if ('stringValue' in val) return val.stringValue;
+    if ('integerValue' in val) return parseInt(val.integerValue, 10);
+    if ('doubleValue' in val) return parseFloat(val.doubleValue);
+    if ('booleanValue' in val) return val.booleanValue;
+    if ('nullValue' in val) return null;
+    if ('timestampValue' in val) return val.timestampValue;
+    if ('arrayValue' in val) {
+      const arr = val.arrayValue.values || [];
+      return arr.map(item => deserializeFirestoreValue(item));
+    }
+    if ('mapValue' in val) {
+      const fields = val.mapValue.fields || {};
+      const res = {};
+      for (const k in fields) {
+        res[k] = deserializeFirestoreValue(fields[k]);
+      }
+      return res;
+    }
+    return val;
+  };
+
+  const extractWorkoutsFromAnyObject = (obj) => {
+    const workouts = [];
+    const plans = [];
+    const weightHistory = [];
+    const visited = new Set();
+
+    const recurse = (val) => {
+      if (!val || typeof val !== 'object') {
+        if (typeof val === 'string' && val.length > 20) {
+          const trimmed = val.trim();
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(val);
+              recurse(parsed);
+            } catch(e) {}
+          }
+        }
+        return;
+      }
+      if (visited.has(val)) return;
+      visited.add(val);
+
+      if (val.mapValue && val.mapValue.fields) {
+        recurse(val.mapValue.fields);
+        return;
+      }
+      if (val.arrayValue && val.arrayValue.values) {
+        recurse(val.arrayValue.values);
+        return;
+      }
+      if (val.stringValue) {
+        recurse(val.stringValue);
+        return;
+      }
+
+      // Check if workout
+      if (val.id && val.date && (val.exercises || Array.isArray(val.exercises))) {
+        const deserialized = deserializeFirestoreValue(val);
+        if (deserialized && deserialized.id && deserialized.date) {
+          workouts.push(deserialized);
+        }
+      }
+
+      // Check if plan
+      if (val.id && val.name && Array.isArray(val.exercises) && 'color' in val && !val.date) {
+        const deserialized = deserializeFirestoreValue(val);
+        if (deserialized && deserialized.id && deserialized.name) {
+          plans.push(deserialized);
+        }
+      }
+
+      // Check if weight
+      if (val.date && ('weight' in val || 'weightValue' in val) && !val.exercises && !val.id) {
+        const deserialized = deserializeFirestoreValue(val);
+        if (deserialized && deserialized.date && deserialized.weight) {
+          weightHistory.push(deserialized);
+        }
+      }
+
+      if (Array.isArray(val)) {
+        val.forEach(item => recurse(item));
+      } else {
+        for (const k in val) {
+          if (k === 'workouts' && Array.isArray(val[k])) {
+            val[k].forEach(item => {
+              const deserialized = deserializeFirestoreValue(item);
+              if (deserialized && deserialized.id && deserialized.date) {
+                workouts.push(deserialized);
+              } else {
+                recurse(item);
+              }
+            });
+          } else if (k === 'plans' && Array.isArray(val[k])) {
+            val[k].forEach(item => {
+              const deserialized = deserializeFirestoreValue(item);
+              if (deserialized && deserialized.id && deserialized.name) {
+                plans.push(deserialized);
+              } else {
+                recurse(item);
+              }
+            });
+          } else if (k === 'weightHistory' && Array.isArray(val[k])) {
+            val[k].forEach(item => {
+              const deserialized = deserializeFirestoreValue(item);
+              if (deserialized && deserialized.date && deserialized.weight) {
+                weightHistory.push(deserialized);
+              } else {
+                recurse(item);
+              }
+            });
+          } else {
+            recurse(val[k]);
+          }
+        }
+      }
+    };
+
+    recurse(obj);
+    return { workouts, plans, weightHistory };
+  };
+
+  const addRescueLog = (msg) => {
+    setRescueLog(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  };
+
+  const performDeepRescueScan = async () => {
+    setRescueScanProgress("scanning");
+    setRescueLog([]);
+    setRescuedWorkouts([]);
+    setRescuedPlans([]);
+    setRescuedWeight([]);
+    addRescueLog("Starte Tiefensuche...");
+
+    let allWorkouts = [];
+    let allPlans = [];
+    let allWeight = [];
+
+    // 1. Scan LocalStorage
+    addRescueLog("Durchsuche LocalStorage...");
+    let lsCount = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        const val = localStorage.getItem(key);
+        if (val) {
+          try {
+            const parsed = JSON.parse(val);
+            const { workouts, plans, weightHistory } = extractWorkoutsFromAnyObject(parsed);
+            if (workouts.length > 0) {
+              allWorkouts = [...allWorkouts, ...workouts];
+              lsCount += workouts.length;
+            }
+            if (plans.length > 0) allPlans = [...allPlans, ...plans];
+            if (weightHistory.length > 0) allWeight = [...allWeight, ...weightHistory];
+          } catch(e) {
+            if (val.trim().startsWith('{') || val.trim().startsWith('[')) {
+              try {
+                const parsed = JSON.parse(val);
+                const { workouts, plans, weightHistory } = extractWorkoutsFromAnyObject(parsed);
+                if (workouts.length > 0) {
+                  allWorkouts = [...allWorkouts, ...workouts];
+                  lsCount += workouts.length;
+                }
+                if (plans.length > 0) allPlans = [...allPlans, ...plans];
+                if (weightHistory.length > 0) allWeight = [...allWeight, ...weightHistory];
+              } catch(e2) {}
+            }
+          }
+        }
+      }
+      addRescueLog(`LocalStorage-Suche abgeschlossen. ${lsCount} Workouts gefunden.`);
+    } catch(err) {
+      addRescueLog(`Fehler beim LocalStorage-Scan: ${err.message}`);
+    }
+
+    // 2. Scan IndexedDB
+    addRescueLog("Durchsuche IndexedDB-Datenbanken...");
+    try {
+      let dbNames = ["firestore/[default]/mircos-app/main"];
+      if (window.indexedDB && window.indexedDB.databases) {
+        const dbs = await window.indexedDB.databases();
+        dbNames = dbs.map(d => d.name).filter(Boolean);
+        if (!dbNames.includes("firestore/[default]/mircos-app/main")) {
+          dbNames.push("firestore/[default]/mircos-app/main");
+        }
+      }
+
+      for (const dbName of dbNames) {
+        addRescueLog(`Öffne DB: ${dbName}...`);
+        try {
+          const db = await new Promise((resolve, reject) => {
+            const req = window.indexedDB.open(dbName);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+            req.onblocked = () => reject(new Error("Blocked"));
+          });
+
+          const stores = Array.from(db.objectStoreNames);
+          for (const storeName of stores) {
+            addRescueLog(`Lese Store: ${storeName}...`);
+            try {
+              const tx = db.transaction(storeName, "readonly");
+              const store = tx.objectStore(storeName);
+              const records = await new Promise((resolve, reject) => {
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+              });
+
+              let storeWoCount = 0;
+              for (const record of records) {
+                const { workouts, plans, weightHistory } = extractWorkoutsFromAnyObject(record);
+                if (workouts.length > 0) {
+                  allWorkouts = [...allWorkouts, ...workouts];
+                  storeWoCount += workouts.length;
+                }
+                if (plans.length > 0) allPlans = [...allPlans, ...plans];
+                if (weightHistory.length > 0) allWeight = [...allWeight, ...weightHistory];
+              }
+              if (storeWoCount > 0) {
+                addRescueLog(`-> ${storeWoCount} Workouts in ${storeName} gefunden.`);
+              }
+            } catch(e) {
+              addRescueLog(`Fehler beim Lesen von Store ${storeName}: ${e.message}`);
+            }
+          }
+          db.close();
+        } catch(e) {
+          addRescueLog(`Konnte DB ${dbName} nicht öffnen/scannen: ${e.message}`);
+        }
+      }
+    } catch(err) {
+      addRescueLog(`Fehler beim IndexedDB-Scan: ${err.message}`);
+    }
+
+    addRescueLog("Filtere Duplikate...");
+    const uniqueWorkouts = [];
+    const woSeen = new Set();
+    allWorkouts.forEach(w => {
+      if (w && w.id && !woSeen.has(w.id)) {
+        woSeen.add(w.id);
+        uniqueWorkouts.push(w);
+      }
+    });
+    uniqueWorkouts.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const uniquePlans = [];
+    const planSeen = new Set();
+    allPlans.forEach(p => {
+      if (p && p.id && !planSeen.has(p.id)) {
+        planSeen.add(p.id);
+        uniquePlans.push(p);
+      }
+    });
+
+    const uniqueWeight = [];
+    const weightSeen = new Set();
+    allWeight.forEach(wh => {
+      if (wh && wh.date && !weightSeen.has(wh.date)) {
+        weightSeen.add(wh.date);
+        uniqueWeight.push(wh);
+      }
+    });
+    uniqueWeight.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    setRescuedWorkouts(uniqueWorkouts);
+    setRescuedPlans(uniquePlans);
+    setRescuedWeight(uniqueWeight);
+    setRescueScanProgress("done");
+    addRescueLog(`Suche abgeschlossen! ${uniqueWorkouts.length} Workouts, ${uniquePlans.length} Pläne, ${uniqueWeight.length} Gewichtseinträge gefunden.`);
+  };
+
+  const executeRescueMerge = () => {
+    if (!authUser) return;
+    try {
+      let updatedData = { ...data };
+      let restoredCount = 0;
+      let restoredPlans = 0;
+      let restoredWeights = 0;
+
+      rescuedWorkouts.forEach(w => {
+        const exists = updatedData.workouts.some(existing => existing.id === w.id);
+        if (!exists) {
+          updatedData.workouts.push(w);
+          restoredCount++;
+        }
+      });
+      if (restoredCount > 0) updatedData.workouts.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      rescuedPlans.forEach(p => {
+        const exists = updatedData.plans.some(existing => existing.id === p.id);
+        if (!exists) {
+          updatedData.plans.push(p);
+          restoredPlans++;
+        } else {
+          const existingIdx = updatedData.plans.findIndex(e => e.id === p.id);
+          if (existingIdx !== -1 && JSON.stringify(updatedData.plans[existingIdx]) !== JSON.stringify(p)) {
+             updatedData.plans[existingIdx] = p;
+             restoredPlans++;
+          }
+        }
+      });
+
+      rescuedWeight.forEach(wh => {
+         const exists = (updatedData.weightHistory||[]).some(existing => existing.date === wh.date);
+         if (!exists) {
+            updatedData.weightHistory = updatedData.weightHistory || [];
+            updatedData.weightHistory.push(wh);
+            restoredWeights++;
+         }
+      });
+      if (updatedData.weightHistory) updatedData.weightHistory.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      if (restoredCount > 0 || restoredPlans > 0 || restoredWeights > 0) {
+        setData(updatedData);
+      }
+
+      showToast(`Rettung abgeschlossen! ${restoredCount} Workouts, ${restoredPlans} Pläne & ${restoredWeights} Gewichte importiert.`);
+      setRescueModalOpen(false);
+    } catch (err) {
+      showToast("Fehler bei Zusammenführung: " + err.message, "error");
+    }
+  };
+
+  const mergeData = (local, remote) => {
+    if (!local) return remote;
+    if (!remote) return local;
+    
+    const mergedWorkouts = [...(local.workouts || [])];
+    (remote.workouts || []).forEach(rw => {
+      if (rw && rw.id) {
+        const exists = mergedWorkouts.some(lw => lw.id === rw.id);
+        if (!exists) {
+          mergedWorkouts.push(rw);
+        }
+      }
+    });
+    mergedWorkouts.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const mergedPlans = [...(local.plans || [])];
+    (remote.plans || []).forEach(rp => {
+      if (rp && rp.id) {
+        const exists = mergedPlans.some(lp => lp.id === rp.id);
+        if (!exists) {
+          mergedPlans.push(rp);
+        } else {
+          const localIdx = mergedPlans.findIndex(lp => lp.id === rp.id);
+          const localPlan = mergedPlans[localIdx];
+          if (rp.updatedAt > (localPlan.updatedAt || 0)) {
+            mergedPlans[localIdx] = rp;
+          }
+        }
+      }
+    });
+
+    const mergedWeightHistory = [...(local.weightHistory || [])];
+    (remote.weightHistory || []).forEach(rw => {
+      if (rw && rw.date) {
+        const exists = mergedWeightHistory.some(lw => lw.date === rw.date);
+        if (!exists) {
+          mergedWeightHistory.push(rw);
+        }
+      }
+    });
+    mergedWeightHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    return {
+      ...local,
+      workouts: mergedWorkouts,
+      plans: mergedPlans,
+      weightHistory: mergedWeightHistory
+    };
+  };
   
   // ── Body Scroll Lock when any modal is open ─────────────────────────────
   useEffect(() => {
-    const anyOpen = logModal || planModal || !!weeklyReport;
+    const anyOpen = logModal || planModal || !!weeklyReport || rescueModalOpen;
     if (anyOpen) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
     }
     return () => document.body.classList.remove('modal-open');
-  }, [logModal, planModal, weeklyReport]);
+  }, [logModal, planModal, weeklyReport, rescueModalOpen]);
 
   // ── Active Workout Global State ───────────────────────────────────────────
   const [activeWorkout, setActiveWorkout] = useState(() => ls("active_workout", null));
@@ -604,130 +1000,8 @@ function FitForge(){
   };
 
   const rescueWorkouts = () => {
-    if (!authUser) return;
-    try {
-      let foundWorkouts = [];
-      let foundPlans = [];
-      let foundWeightHistory = [];
-      let foundName = null;
-      let foundPrs = null;
-      let foundNut = null;
-      let foundWeekPlans = null;
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        // data (workouts, plans, weightHistory)
-        if (k && k.startsWith("ff_") && k.endsWith("_data") && k !== `ff_${authUser.uid}_data`) {
-          try {
-            const raw = localStorage.getItem(k);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (parsed && parsed.workouts && Array.isArray(parsed.workouts)) {
-                foundWorkouts = [...foundWorkouts, ...parsed.workouts];
-              }
-              if (parsed && parsed.plans && Array.isArray(parsed.plans)) {
-                foundPlans = [...foundPlans, ...parsed.plans];
-              }
-              if (parsed && parsed.weightHistory && Array.isArray(parsed.weightHistory)) {
-                foundWeightHistory = [...foundWeightHistory, ...parsed.weightHistory];
-              }
-            }
-          } catch(e) {}
-        }
-        // user (name, weight, etc)
-        if (k && k.startsWith("ff_") && k.endsWith("_user") && k !== `ff_${authUser.uid}_user`) {
-           try {
-              const raw = localStorage.getItem(k);
-              if (raw) {
-                 const p = JSON.parse(raw);
-                 if (p && p.firstName && (!user.firstName || user.firstName.trim() === "")) {
-                    foundName = p;
-                 }
-              }
-           } catch(e) {}
-        }
-        // prs
-        if (k && k.startsWith("ff_") && k.endsWith("_prs") && k !== `ff_${authUser.uid}_prs`) {
-           try {
-              const raw = localStorage.getItem(k);
-              if (raw && Object.keys(JSON.parse(raw)).length > Object.keys(prs).length) {
-                 foundPrs = JSON.parse(raw);
-              }
-           } catch(e) {}
-        }
-        // nutrition
-        if (k && k.startsWith("ff_") && k.endsWith("_nutrition") && k !== `ff_${authUser.uid}_nutrition`) {
-           try {
-              const raw = localStorage.getItem(k);
-              if (raw && Object.keys(JSON.parse(raw)).length > Object.keys(nutrition).length) {
-                 foundNut = JSON.parse(raw);
-              }
-           } catch(e) {}
-        }
-        // weekPlans
-        if (k && k.startsWith("ff_") && k.endsWith("_weekPlans") && k !== `ff_${authUser.uid}_weekPlans`) {
-           try {
-              const raw = localStorage.getItem(k);
-              if (raw && Object.keys(JSON.parse(raw)).length > Object.keys(weekPlans).length) {
-                 foundWeekPlans = JSON.parse(raw);
-              }
-           } catch(e) {}
-        }
-      }
-      
-      let updatedData = { ...data };
-      let restoredCount = 0;
-      let restoredPlans = 0;
-      
-      // Merge workouts
-      foundWorkouts.forEach(w => {
-        const exists = updatedData.workouts.some(existing => existing.id === w.id);
-        if (!exists) {
-          updatedData.workouts.push(w);
-          restoredCount++;
-        }
-      });
-      if (restoredCount > 0) updatedData.workouts.sort((a,b) => new Date(a.date) - new Date(b.date));
-
-      // Merge plans (ignore default plans if we find better ones with same name, or just add missing)
-      foundPlans.forEach(p => {
-        const exists = updatedData.plans.some(existing => existing.id === p.id);
-        if (!exists) {
-          updatedData.plans.push(p);
-          restoredPlans++;
-        } else {
-          // If a plan with same ID exists but the recovered one has a different name or exercises (e.g., they customized a default plan), we overwrite it.
-          const existingIdx = updatedData.plans.findIndex(e => e.id === p.id);
-          if (existingIdx !== -1 && JSON.stringify(updatedData.plans[existingIdx]) !== JSON.stringify(p)) {
-             updatedData.plans[existingIdx] = p;
-             restoredPlans++;
-          }
-        }
-      });
-
-      // Merge weightHistory
-      foundWeightHistory.forEach(wh => {
-         const exists = (updatedData.weightHistory||[]).some(existing => existing.date === wh.date);
-         if (!exists) {
-            updatedData.weightHistory = updatedData.weightHistory || [];
-            updatedData.weightHistory.push(wh);
-         }
-      });
-      if (updatedData.weightHistory) updatedData.weightHistory.sort((a,b) => new Date(a.date) - new Date(b.date));
-
-      if (restoredCount > 0 || restoredPlans > 0 || foundWeightHistory.length > 0) {
-        setData(updatedData);
-      }
-      
-      if (foundName) setUser(u => ({...u, ...foundName}));
-      if (foundPrs) setPrs(p => ({...p, ...foundPrs}));
-      if (foundNut) setNutrition(n => ({...n, ...foundNut}));
-      if (foundWeekPlans) setWeekPlans(wp => ({...wp, ...foundWeekPlans}));
-
-      showToast(`Rettung abgeschlossen! ${restoredCount} Workouts & ${restoredPlans} Pläne wiederhergestellt.`);
-    } catch (err) {
-      showToast("Fehler bei der Rettung: " + err.message, "error");
-    }
+    setRescueModalOpen(true);
+    performDeepRescueScan();
   };
 
   useEffect(() => {
@@ -774,6 +1048,10 @@ function FitForge(){
         if (window.dbg) dbg('👤 Nutzer eingeloggt: ' + fbUser.email, '#0f0');
         
         lastSyncRef.current = {};
+        // Reset loaded keys tracker for this user session
+        Object.keys(loadedKeysRef.current).forEach(k => {
+          loadedKeysRef.current[k] = false;
+        });
 
         const privateKeys = [
           { key: "data", setter: setData, df: defaultData },
@@ -803,21 +1081,82 @@ function FitForge(){
           const ref = window.firebaseDoc(window.firebaseDb, "fitforge", `${uid}_${key}`);
           const unsub = window.firebaseOnSnapshot(ref, (snap) => {
             if (cancelled) return;
+            
+            // Mark key as loaded
+            loadedKeysRef.current[key] = true;
+            
+            // If all keys are loaded, signal globally ready
+            const allLoaded = Object.values(loadedKeysRef.current).every(v => v);
+            if (allLoaded && !loaded) {
+              setLoaded(true);
+            }
+
             if (snap.exists) {
               const cloudVal = snap.data().value;
               const cloudStr = JSON.stringify(cloudVal);
               if (cloudStr !== lastSyncRef.current[key]) {
-                localStorage.setItem(`ff_${uid}_${key}`, cloudStr);
-                lastSyncRef.current[key] = cloudStr;
-                setter(cloudVal);
+                if (window.dbg) dbg(`📥 Snapshot empfangen für ${key}`, '#a8f');
+                // Perform safe merging for specific keys to prevent overwriting local offline progress
+                if (key === "data") {
+                  setData(prevLocal => {
+                    const merged = mergeData(prevLocal, cloudVal);
+                    const mergedStr = JSON.stringify(merged);
+                    localStorage.setItem(`ff_${uid}_data`, mergedStr);
+                    lastSyncRef.current["data"] = mergedStr;
+                    return merged;
+                  });
+                } else if (key === "user") {
+                  setUser(prevLocal => {
+                    const merged = { ...prevLocal, ...cloudVal };
+                    const mergedStr = JSON.stringify(merged);
+                    localStorage.setItem(`ff_${uid}_user`, mergedStr);
+                    lastSyncRef.current["user"] = mergedStr;
+                    return merged;
+                  });
+                } else if (key === "prs") {
+                  setPrs(prevLocal => {
+                    const merged = { ...prevLocal, ...cloudVal };
+                    const mergedStr = JSON.stringify(merged);
+                    localStorage.setItem(`ff_${uid}_prs`, mergedStr);
+                    lastSyncRef.current["prs"] = mergedStr;
+                    return merged;
+                  });
+                } else if (key === "nutrition") {
+                  setNutrition(prevLocal => {
+                    const merged = { ...prevLocal, ...cloudVal };
+                    const mergedStr = JSON.stringify(merged);
+                    localStorage.setItem(`ff_${uid}_nutrition`, mergedStr);
+                    lastSyncRef.current["nutrition"] = mergedStr;
+                    return merged;
+                  });
+                } else if (key === "weekPlans") {
+                  setWeekPlans(prevLocal => {
+                    const merged = { ...prevLocal, ...cloudVal };
+                    const mergedStr = JSON.stringify(merged);
+                    localStorage.setItem(`ff_${uid}_weekPlans`, mergedStr);
+                    lastSyncRef.current["weekPlans"] = mergedStr;
+                    return merged;
+                  });
+                } else {
+                  localStorage.setItem(`ff_${uid}_${key}`, cloudStr);
+                  lastSyncRef.current[key] = cloudStr;
+                  setter(cloudVal);
+                }
               }
             } else {
-              // CRITICAL: Document does not exist in cloud (new user)
-              // We must ensure the state is empty/default for this user.
-              if (window.dbg) dbg(`ℹ️ ${key} leer in Cloud (Neuer Account)`, '#aaa');
-              setter(df);
-              lastSyncRef.current[key] = JSON.stringify(df);
-              localStorage.removeItem(`ff_${uid}_${key}`);
+              // CRITICAL: Document does not exist in cloud (new user or missing document)
+              if (window.dbg) dbg(`ℹ️ ${key} leer in Cloud (Neuer Account oder noch nicht angelegt)`, '#aaa');
+              
+              // If we already have local cache loaded in step 1, DO NOT delete it.
+              // Instead, we keep it and we will sync it up to the cloud.
+              const localValStr = localStorage.getItem(`ff_${uid}_${key}`);
+              if (localValStr) {
+                // Set lastSyncRef to df so syncToCloud will detect a difference and push our local data to the cloud
+                lastSyncRef.current[key] = JSON.stringify(df);
+              } else {
+                setter(df);
+                lastSyncRef.current[key] = JSON.stringify(df);
+              }
             }
           });
           unsubs.push(unsub);
@@ -825,6 +1164,10 @@ function FitForge(){
       } else {
         if (window.dbg) dbg('🚪 Nutzer ausgeloggt', '#ff0');
         setLoaded(false);
+        // Reset loaded tracker on logout
+        Object.keys(loadedKeysRef.current).forEach(k => {
+          loadedKeysRef.current[k] = false;
+        });
         unsubs.forEach(fn => fn());
         unsubs = [];
         // Reset private state on logout
@@ -851,10 +1194,17 @@ function FitForge(){
               setLibrary(libVal);
             }
         }
-        if (!loaded && fbUser) setLoaded(true); // Signal ready when library is fetched
+        if (!loaded && fbUser) {
+          // Verify that all private keys are also loaded before setting loaded=true
+          const allPrivateLoaded = Object.values(loadedKeysRef.current).every(v => v);
+          if (allPrivateLoaded) setLoaded(true);
+        }
       }, (err) => {
         if (window.dbg) dbg('❌ Library Fehler: ' + err.message, '#f55');
-        if (!loaded && fbUser) setLoaded(true);
+        if (!loaded && fbUser) {
+          const allPrivateLoaded = Object.values(loadedKeysRef.current).every(v => v);
+          if (allPrivateLoaded) setLoaded(true);
+        }
       });
       unsubs.push(libUnsub);
     };
@@ -895,16 +1245,36 @@ function FitForge(){
   const debRef = useRef({});
   const syncToCloud = (key, val) => {
     if (!authUser || !loaded) return;
+    
+    // Safety guard: only upload if this key has finished its initial load from Firestore
+    if (!loadedKeysRef.current[key]) return;
+
     const valStr = JSON.stringify(val);
     
-    // VERY IMPORTANT: Skip if this change just came FROM the cloud
+    // Skip if this change just came FROM the cloud
     if (valStr === lastSyncRef.current[key]) return;
+
+    // Safety check: Prevent overwriting richer cloud data with empty/smaller local data
+    if (key === "data" && val && Array.isArray(val.workouts)) {
+      try {
+        const lastStr = lastSyncRef.current[key] || localStorage.getItem(`ff_${authUser.uid}_${key}`);
+        if (lastStr) {
+          const lastVal = JSON.parse(lastStr);
+          if (lastVal && Array.isArray(lastVal.workouts) && lastVal.workouts.length > val.workouts.length) {
+            // Local state has fewer workouts than what is in cloud/lastSync. Merge them instead of writing smaller dataset!
+            console.warn(`Local data has fewer workouts (${val.workouts.length}) than last sync (${lastVal.workouts.length}). Merging...`);
+            const merged = mergeData(val, lastVal);
+            setData(merged);
+            return;
+          }
+        }
+      } catch(e) {}
+    }
 
     clearTimeout(debRef.current[key]);
     debRef.current[key] = setTimeout(() => {
       if (window.dbg) dbg(`📤 Synchronisiere ${key}...`, '#ff0');
       fbSet(key, val).then(() => {
-        // We set the ref AFTER the write initiated to ensure it matches incoming snapshots
         lastSyncRef.current[key] = valStr;
       });
     }, 300);
@@ -1238,6 +1608,15 @@ function FitForge(){
       {logModal&&<QuickLogModal data={data} setData={setData} onClose={()=>setLogModal(false)} notify={showToast}/>}
       {planModal&&<PlanModal data={data} setData={setData} editPlan={editPlan} library={library} onClose={()=>{setPlanModal(false);setEditPlan(null);}} notify={showToast}/>}
       {weeklyReport&&<WeeklyReportModal report={weeklyReport} onClose={()=>setWeeklyReport(null)} data={data}/>}
+      {rescueModalOpen&&<RescueModal 
+        progress={rescueScanProgress} 
+        workouts={rescuedWorkouts} 
+        plans={rescuedPlans} 
+        weightHistory={rescuedWeight}
+        log={rescueLog} 
+        onClose={()=>setRescueModalOpen(false)} 
+        onMerge={executeRescueMerge}
+      />}
 
       {/* ── Active Workout Floating Preview ───────────────────────────────── */}
       {activeWorkout && view !== 'log' && (
@@ -4263,11 +4642,98 @@ function WeeklyReportModal({report, onClose, data}) {
           <button style={{...s.primaryBtn, flex:1, padding:14, fontSize:13}} onClick={onClose}>
             Schließen
           </button>
+      </div>
+    </div>
+  );
+}
+
+function RescueModal({ progress, workouts, plans, weightHistory, log, onClose, onMerge }) {
+  return (
+    <div style={s.overlay2} onClick={onClose}>
+      <div style={{...s.modal, maxWidth: 540, width: "100%", maxHeight: "88vh", overflowY: "auto", background: "#0D0D0F", border: "1px solid #1E1E24", padding: 24}} onClick={e => e.stopPropagation()} className="dropIn">
+        <h2 style={{...s.modalTitle, marginBottom: 8, display: "flex", alignItems: "center", gap: 10}}>
+          <span style={{color: "#06D6A0"}}>🛠️</span> Daten-Tiefenrettung
+        </h2>
+        <p style={{fontSize: 13, color: "#888", marginBottom: 20}}>
+          Wir durchsuchen deinen gesamten Browser-Cache nach verlorenen Workouts, Plänen und Gewichtswerten.
+        </p>
+
+        {/* Scan Status */}
+        <div style={{background: "#16161A", border: "1px solid #1E1E24", borderRadius: 12, padding: 16, marginBottom: 20}}>
+          <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12}}>
+            <span style={{fontSize: 14, fontWeight: 700}}>Scan-Status:</span>
+            <span style={{
+              fontSize: 12, 
+              fontWeight: 800, 
+              padding: "4px 10px", 
+              borderRadius: 20, 
+              background: progress === "scanning" ? "#FFD16620" : progress === "done" ? "#06D6A020" : "#ef444420",
+              color: progress === "scanning" ? "#FFD166" : progress === "done" ? "#06D6A0" : "#ef4444"
+            }}>
+              {progress === "scanning" ? "Scanne..." : progress === "done" ? "Scan beendet" : "Fehler"}
+            </span>
+          </div>
+
+          <div style={{height: 120, background: "#0A0A0C", border: "1px solid #141416", borderRadius: 8, padding: 10, overflowY: "auto", fontFamily: "monospace", fontSize: 11, color: "#aaa", whiteSpace: "pre-wrap"}}>
+            {log.map((line, idx) => (
+              <div key={idx} style={{marginBottom: 4}}>{line}</div>
+            ))}
+          </div>
+        </div>
+
+        {/* Results Info */}
+        {progress === "done" && (
+          <div style={{marginBottom: 20}}>
+            <h3 style={{fontSize: 14, fontWeight: 700, marginBottom: 10, color: "#F0EDE8"}}>Gefundene Daten:</h3>
+            <div style={{display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16}}>
+              <div style={{background: "#16161A", padding: 12, borderRadius: 10, border: "1px solid #1E1E24", textAlign: "center"}}>
+                <div style={{fontSize: 20, fontWeight: 800, color: "#06D6A0"}}>{workouts.length}</div>
+                <div style={{fontSize: 10, color: "#888", marginTop: 2}}>Workouts</div>
+              </div>
+              <div style={{background: "#16161A", padding: 12, borderRadius: 10, border: "1px solid #1E1E24", textAlign: "center"}}>
+                <div style={{fontSize: 20, fontWeight: 800, color: "#FFD166"}}>{plans.length}</div>
+                <div style={{fontSize: 10, color: "#888", marginTop: 2}}>Trainingspläne</div>
+              </div>
+              <div style={{background: "#16161A", padding: 12, borderRadius: 10, border: "1px solid #1E1E24", textAlign: "center"}}>
+                <div style={{fontSize: 20, fontWeight: 800, color: "#4CC9F0"}}>{weightHistory.length}</div>
+                <div style={{fontSize: 10, color: "#888", marginTop: 2}}>Gewichtswerte</div>
+              </div>
+            </div>
+
+            {workouts.length > 0 && (
+              <div style={{maxHeight: 180, overflowY: "auto", border: "1px solid #1E1E24", borderRadius: 10, background: "#16161A"}}>
+                {workouts.map((w, idx) => (
+                  <div key={w.id || idx} style={{display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: idx < workouts.length - 1 ? "1px solid #141416" : "none"}}>
+                    <div>
+                      <div style={{fontSize: 13, fontWeight: 700}}>{w.name}</div>
+                      <div style={{fontSize: 11, color: "#666"}}>{w.date}</div>
+                    </div>
+                    <div style={{fontSize: 12, color: "#888"}}>
+                      {w.exercises?.length || 0} Übungen
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer Actions */}
+        <div style={{display: "flex", gap: 12, marginTop: 24}}>
+          <button style={{...s.secBtn, flex: 1, padding: 12}} onClick={onClose}>
+            Schließen
+          </button>
+          {progress === "done" && (workouts.length > 0 || plans.length > 0 || weightHistory.length > 0) && (
+            <button style={{...s.primaryBtn, flex: 2, padding: 12, background: "#06D6A0", borderColor: "#06D6A0", color: "#000"}} onClick={onMerge}>
+              Daten importieren & zusammenführen
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 function PhotoDetailModal({photo, onClose, isMobile}) {
   const [zoom, setZoom] = useState(1);
   const [pos, setPos] = useState({x:0, y:0});
