@@ -607,24 +607,34 @@ function FitForge(){
     if (!authUser) return;
     try {
       let foundWorkouts = [];
+      let foundPlans = [];
+      let foundWeightHistory = [];
       let foundName = null;
+      let foundPrs = null;
+      let foundNut = null;
+      let foundWeekPlans = null;
+
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
+        // data (workouts, plans, weightHistory)
         if (k && k.startsWith("ff_") && k.endsWith("_data") && k !== `ff_${authUser.uid}_data`) {
           try {
             const raw = localStorage.getItem(k);
             if (raw) {
               const parsed = JSON.parse(raw);
               if (parsed && parsed.workouts && Array.isArray(parsed.workouts)) {
-                const recent = parsed.workouts.filter(w => {
-                  const d = new Date(w.date);
-                  return (Date.now() - d.getTime()) < 7 * 24 * 60 * 60 * 1000;
-                });
-                foundWorkouts = [...foundWorkouts, ...recent];
+                foundWorkouts = [...foundWorkouts, ...parsed.workouts];
+              }
+              if (parsed && parsed.plans && Array.isArray(parsed.plans)) {
+                foundPlans = [...foundPlans, ...parsed.plans];
+              }
+              if (parsed && parsed.weightHistory && Array.isArray(parsed.weightHistory)) {
+                foundWeightHistory = [...foundWeightHistory, ...parsed.weightHistory];
               }
             }
           } catch(e) {}
         }
+        // user (name, weight, etc)
         if (k && k.startsWith("ff_") && k.endsWith("_user") && k !== `ff_${authUser.uid}_user`) {
            try {
               const raw = localStorage.getItem(k);
@@ -636,11 +646,40 @@ function FitForge(){
               }
            } catch(e) {}
         }
+        // prs
+        if (k && k.startsWith("ff_") && k.endsWith("_prs") && k !== `ff_${authUser.uid}_prs`) {
+           try {
+              const raw = localStorage.getItem(k);
+              if (raw && Object.keys(JSON.parse(raw)).length > Object.keys(prs).length) {
+                 foundPrs = JSON.parse(raw);
+              }
+           } catch(e) {}
+        }
+        // nutrition
+        if (k && k.startsWith("ff_") && k.endsWith("_nutrition") && k !== `ff_${authUser.uid}_nutrition`) {
+           try {
+              const raw = localStorage.getItem(k);
+              if (raw && Object.keys(JSON.parse(raw)).length > Object.keys(nutrition).length) {
+                 foundNut = JSON.parse(raw);
+              }
+           } catch(e) {}
+        }
+        // weekPlans
+        if (k && k.startsWith("ff_") && k.endsWith("_weekPlans") && k !== `ff_${authUser.uid}_weekPlans`) {
+           try {
+              const raw = localStorage.getItem(k);
+              if (raw && Object.keys(JSON.parse(raw)).length > Object.keys(weekPlans).length) {
+                 foundWeekPlans = JSON.parse(raw);
+              }
+           } catch(e) {}
+        }
       }
       
       let updatedData = { ...data };
       let restoredCount = 0;
+      let restoredPlans = 0;
       
+      // Merge workouts
       foundWorkouts.forEach(w => {
         const exists = updatedData.workouts.some(existing => existing.id === w.id || existing.date === w.date);
         if (!exists) {
@@ -648,21 +687,37 @@ function FitForge(){
           restoredCount++;
         }
       });
-      
-      if (restoredCount > 0) {
-        updatedData.workouts.sort((a,b) => new Date(a.date) - new Date(b.date));
+      if (restoredCount > 0) updatedData.workouts.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      // Merge plans (ignore default plans if we find better ones with same name, or just add missing)
+      foundPlans.forEach(p => {
+        const exists = updatedData.plans.some(existing => existing.name === p.name);
+        if (!exists) {
+          updatedData.plans.push({...p, id: Date.now() + Math.random()});
+          restoredPlans++;
+        }
+      });
+
+      // Merge weightHistory
+      foundWeightHistory.forEach(wh => {
+         const exists = (updatedData.weightHistory||[]).some(existing => existing.date === wh.date);
+         if (!exists) {
+            updatedData.weightHistory = updatedData.weightHistory || [];
+            updatedData.weightHistory.push(wh);
+         }
+      });
+      if (updatedData.weightHistory) updatedData.weightHistory.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      if (restoredCount > 0 || restoredPlans > 0 || foundWeightHistory.length > 0) {
         setData(updatedData);
       }
       
-      if (foundName) {
-         setUser(u => ({...u, firstName: foundName.firstName || u.firstName, lastName: foundName.lastName || u.lastName, weight: foundName.weight || u.weight, height: foundName.height || u.height}));
-      }
+      if (foundName) setUser(u => ({...u, ...foundName}));
+      if (foundPrs) setPrs(p => ({...p, ...foundPrs}));
+      if (foundNut) setNutrition(n => ({...n, ...foundNut}));
+      if (foundWeekPlans) setWeekPlans(wp => ({...wp, ...foundWeekPlans}));
 
-      if (restoredCount > 0 || foundName) {
-         showToast(`Rettung erfolgreich! ${restoredCount} Training(s) & Profil-Daten wiederhergestellt.`);
-      } else {
-         showToast("Keine fehlenden Trainings oder Profil-Daten im lokalen Speicher gefunden.", "info");
-      }
+      showToast(`Rettung abgeschlossen! ${restoredCount} Workouts & ${restoredPlans} Pläne wiederhergestellt.`);
     } catch (err) {
       showToast("Fehler bei der Rettung: " + err.message, "error");
     }
