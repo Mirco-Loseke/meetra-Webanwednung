@@ -1540,7 +1540,7 @@ function FitForge(){
               <button className="iconBtn" style={{...s.iconCircle,...(notifOpen?s.iconOn:{})}} onClick={()=>{setNotifOpen(o=>!o);setProfileOpen(false);}}>
                 {IC.bell}{unread>0&&<span style={s.badge}>{unread}</span>}
               </button>
-              {notifOpen&&<div style={{...s.dropdown, width: isMobile ? "min(350px, calc(100vw - 32px))" : 350, right: isMobile ? -10 : 0}} className="dropIn" onClick={e=>e.stopPropagation()}>
+              {notifOpen&&<div style={{...s.dropdown, background: "#16161A", backdropFilter: "none", WebkitBackdropFilter: "none", border: "1px solid #1E1E24", width: isMobile ? "280px" : 350, right: isMobile ? "-16px" : 0}} className="dropIn" onClick={e=>e.stopPropagation()}>
                 <div style={s.ddHead}><span style={s.ddTitle}>Benachrichtigungen</span>{unread>0&&<button className="markAllBtn" onClick={markAll}>Alle lesen</button>}</div>
                 <div style={{maxHeight:320,overflowY:"auto"}}>
                   {!notifs.length&&<div style={{padding:"36px 18px",textAlign:"center",color:"#555",fontSize:13}}>Alles erledigt 🎉</div>}
@@ -1602,7 +1602,7 @@ function FitForge(){
           {view==="nutrition"&&<Nutrition nutrition={nutrition} setNutrition={setNutrition} user={user} notify={showToast} favFoods={favFoods} setFavFoods={setFavFoods} isMobile={isMobile}/>}
           {view==="recipes"&&<RecipesPage notify={showToast} isMobile={isMobile}/>}
           {view==="goals"&&<GoalsPage user={user} setUser={setUser} data={data} notify={showToast} isMobile={isMobile}/>}
-          {view==="profile"&&<ProfilePage user={user} setUser={setUser} notify={showToast}/>}
+          {view==="profile"&&<ProfilePage user={user} setUser={setUser} notify={showToast} isMobile={isMobile}/>}
         </div>
       </main>
       {logModal&&<QuickLogModal data={data} setData={setData} onClose={()=>setLogModal(false)} notify={showToast}/>}
@@ -4112,45 +4112,26 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                     disabled={!compSel.includes(gi) && compSel.length >= 2}
                     onChange={(e) => {
                       if (e.target.checked) setCompSel([...compSel, gi]);
-                      else setCompSel(compSel.filter(id => id !== gi));
-                    }}
-                    style={{width: 20, height: 20, accentColor: "#FFD166", cursor: "pointer"}}
-                  />
-                )}
-                <span style={{fontSize:24,fontWeight:900,fontFamily:"'DM Sans',sans-serif",color:"#F0EDE8"}}>KW {group.wn}</span>
-                <span style={{fontSize:14,fontWeight:700,color:"#666"}}>({group.dateRange})</span>
-              </div>
-              {!compMode && (
-                <button 
-                  style={{...s.secBtn, padding:"7px 15px", fontSize:12, fontWeight:800, display:"flex", alignItems:"center", gap:8, background:"rgba(255,107,53,0.15)", border:"1px solid #FF6B35", color:"#FF6B35", textShadow:"0 0 10px rgba(255,107,53,0.5)", boxShadow:"0 0 15px rgba(255,107,53,0.4), inset 0 0 10px rgba(255,107,53,0.2)", borderRadius:12}}
-                  onClick={()=>setWeeklyReport(group)}
-                >
-                  {IC.stats} Bericht
-                </button>
-              )}
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:16}}>
-              {group.workouts.map(w=>{
-                const plan=data.plans.find(p=>p.id===w.planId);
-                return(
-                  <div key={w.id} style={{...s.histCard,padding:18, borderLeft:`5px solid ${plan?.color || "rgba(255,255,255,0.2)"}`, borderTop:"1px solid rgba(255,255,255,0.1)", borderRight:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", background:plan?`linear-gradient(135deg, ${plan.color}1A 0%, ${plan.color}08 40%, rgba(18,18,24,0.55) 100%)`:"linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 60%), rgba(18,18,24,0.5)", backdropFilter:"blur(24px) saturate(190%)", WebkitBackdropFilter:"blur(24px) saturate(190%)", boxShadow:plan?`inset 0 1px 1px rgba(255,255,255,0.1), 0 8px 32px rgba(0,0,0,0.35)`:"inset 0 1px 1px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)", flexDirection:"column", alignItems:"stretch", borderRadius:16, position:"relative", overflow:"hidden"}} className="histCard" onClick={()=>setSelWO(w.id)}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                             <div key={w.id} style={{...s.histCard,padding:18, borderLeft:`5px solid ${plan?.color || "rgba(255,255,255,0.2)"}`, borderTop:"1px solid rgba(255,255,255,0.1)", borderRight:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", background:plan?`linear-gradient(135deg, ${plan.color}1A 0%, ${plan.color}08 40%, rgba(18,18,24,0.55) 100%)`:"linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 60%), rgba(18,18,24,0.5)", backdropFilter:"blur(24px) saturate(190%)", WebkitBackdropFilter:"blur(24px) saturate(190%)", boxShadow:plan?`inset 0 1px 1px rgba(255,255,255,0.1), 0 8px 32px rgba(0,0,0,0.35)`:"inset 0 1px 1px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)", flexDirection:"column", alignItems:"stretch", borderRadius:16, position:"relative", overflow:"visible"}} className="histCard" onClick={()=>setSelWO(w.id)}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:18,color:plan?.color || "#F0EDE8"}}>{w.name}</div>
+                        <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:isMobile?16:18,color:plan?.color || "#F0EDE8"}}>{w.name}</div>
                         {w.hiitMode && <div style={{display:"flex",color:"#FFD166",filter:"drop-shadow(0 0 5px rgba(255,209,102,0.5))"}} className="hiit-glow">{IC.bolt}</div>}
                       </div>
-                      <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                        {w.earnedPoints && <div style={{background:"linear-gradient(135deg, rgba(255,209,102,0.2), rgba(255,159,28,0.2))", color:"#FFD166", border:"1px solid rgba(255,209,102,0.3)", padding:"4px 8px", borderRadius:8, fontSize:11, fontWeight:800}}>🪙 +{w.earnedPoints}</div>}
-                        <div style={{display:"flex",gap:6,fontSize:12,fontWeight:800,color:"#888"}}>
-                          <span>{w.startTime || "--"}</span>
-                          <span style={{color:"#444"}}>-</span>
-                          <span>{w.endTime || "--"}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+                          <span style={{fontSize:11,fontWeight:800,color:"#FF6B35"}}>{fmtDate(w.date)}</span>
+                          <div style={{display:"flex",gap:4,fontSize:10,fontWeight:700,color:"#888"}}>
+                            <span>{w.startTime || "--"}</span>
+                            <span style={{color:"#444"}}>-</span>
+                            <span>{w.endTime || "--"}</span>
+                          </div>
                         </div>
-                        <span style={{fontSize:18,color:"#333",marginLeft:4}}>→</span>
+                        <span style={{fontSize:16,color:"#444",marginLeft:2}}>→</span>
                       </div>
                     </div>
                     
-                    <div style={{display:"grid",gridTemplateColumns: w.hiitMode ? "repeat(2,1fr)" : "repeat(4,1fr)",gap:10,marginBottom:12}}>
+                    <div style={{display:"grid",gridTemplateColumns: w.hiitMode ? "repeat(2,1fr)" : "repeat(3,1fr)",gap:10,marginBottom:12}}>
                       <div style={{textAlign:"center",padding:"10px 8px",background:"rgba(255,107,53,0.06)",borderRadius:12,border:"1px solid rgba(255,107,53,0.18)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",boxShadow:"inset 0 1px 0 rgba(255,107,53,0.12)"}}>
                         <div style={{fontSize:10,color:"#666",marginBottom:2,textTransform:"uppercase",fontWeight:700}}>Dauer</div>
                         <div style={{fontSize:13,fontWeight:800,color:"#FF6B35"}}>{w.duration} min</div>
@@ -4187,10 +4168,6 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                           {w.exercises.length}
                         </div>
                       </div>
-                      <div style={{textAlign:"center",padding:"10px 8px",background:"rgba(255,255,255,0.04)",borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",boxShadow:"inset 0 1px 0 rgba(255,255,255,0.06)"}}>
-                        <div style={{fontSize:10,color:"#666",marginBottom:2,textTransform:"uppercase",fontWeight:700}}>Datum</div>
-                        <div style={{fontSize:11,fontWeight:800,color:"#F0EDE8"}}>{fmtDate(w.date)}</div>
-                      </div>
                     </div>
 
 
@@ -4216,6 +4193,30 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                         </div>
                       </div>
                     </div>}
+                    {w.earnedPoints && (
+                      <div style={{
+                        position: "absolute",
+                        bottom: -11,
+                        right: 24,
+                        background: "linear-gradient(135deg, #FFB703, #FF8C00)",
+                        color: "#000",
+                        padding: "3px 10px",
+                        borderRadius: "12px",
+                        fontSize: "10px",
+                        fontWeight: "900",
+                        fontFamily: "'DM Sans',sans-serif",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        border: "1px solid #FFD166",
+                        boxShadow: "0 3px 8px rgba(255, 183, 3, 0.4)",
+                        zIndex: 2
+                      }}>
+                        <span>F. P.</span>
+                        <span>🪙</span>
+                        <span>+{w.earnedPoints}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -4830,7 +4831,7 @@ function PhotoDetailModal({photo, onClose, isMobile}) {
   );
 }
 
-function ProfilePage({user,setUser,notify}){
+function ProfilePage({user,setUser,notify,isMobile}){
   const [form,setForm]=useState({...user});
   const [uploading,setUploading]=useState(false);
   const fileRef=useRef();
@@ -4852,20 +4853,20 @@ function ProfilePage({user,setUser,notify}){
 
   const save=()=>{setUser(form);notify("Profil gespeichert! ✅");};
 
-  return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Mein Profil</h1><p style={s.pageSub}>Daten & Einstellungen</p></div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:22}}>
+  return(<div style={s.page}><div style={s.pageHead}><div><h1 style={s.pageTitle}>Mein Profil</h1><p style={s.pageSub}>Daten & Einstellungen</p></div></div><div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:22}}>
   <div style={s.card}><h3 style={s.cardTitle}>Persönliche Daten</h3><div style={{display:"flex",alignItems:"center",gap:18,marginBottom:24}}><div className="avCircle" style={{width:76,height:76,borderRadius:"50%",background:"rgba(255,255,255,0.04)",border:"2px dashed rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",overflow:"hidden",flexShrink:0}} onClick={()=>fileRef.current.click()}>{form.avatar?<img src={form.avatar} alt="av" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:<span style={{fontSize:28,fontFamily:"'DM Sans',sans-serif",fontWeight:800,color:"#FF6B35"}}>{getInitials(form)}</span>}<div className="avOverlay" style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.2s"}}>{IC.camera}</div></div><input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleAv}/><div><div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:16}}>{form.firstName||form.lastName?`${form.firstName} ${form.lastName}`.trim():"Dein Name"}</div></div></div>
-  <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Vorname</label><input style={s.inp} value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} placeholder="Max"/></div><div style={s.fg}><label style={s.lbl}>Nachname</label><input style={s.inp} value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} placeholder="Mustermann"/></div></div>
+  <div style={{...s.formGrid, gridTemplateColumns:isMobile?"1fr":"1fr 1fr"}}><div style={s.fg}><label style={s.lbl}>Vorname</label><input style={s.inp} value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} placeholder="Max"/></div><div style={s.fg}><label style={s.lbl}>Nachname</label><input style={s.inp} value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} placeholder="Mustermann"/></div></div>
   <div style={s.fg}><label style={s.lbl}>E-Mail</label><input style={s.inp} type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="max@beispiel.de"/></div>
-  <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Gewicht (kg)</label><input style={s.inp} type="number" value={form.weight} onChange={e=>setForm(f=>({...f,weight:e.target.value}))} placeholder="80"/></div><div style={s.fg}><label style={s.lbl}>Größe (cm)</label><input style={s.inp} type="number" value={form.height} onChange={e=>setForm(f=>({...f,height:e.target.value}))} placeholder="180"/></div></div>
+  <div style={{...s.formGrid, gridTemplateColumns:isMobile?"1fr":"1fr 1fr"}}><div style={s.fg}><label style={s.lbl}>Gewicht (kg)</label><input style={s.inp} type="number" value={form.weight} onChange={e=>setForm(f=>({...f,weight:e.target.value}))} placeholder="80"/></div><div style={s.fg}><label style={s.lbl}>Größe (cm)</label><input style={s.inp} type="number" value={form.height} onChange={e=>setForm(f=>({...f,height:e.target.value}))} placeholder="180"/></div></div>
   <div style={s.fg}><label style={s.lbl}>Fitnessziel</label><select style={s.inp} value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))}>{["Muskelaufbau","Gewichtsverlust","Ausdauer","Fitness & Gesundheit","Kraft steigern"].map(g=><option key={g}>{g}</option>)}</select></div>
   <div style={{...s.card,marginTop:22}}><h3 style={{...s.cardTitle,color:"#FFB703",display:"flex",alignItems:"center",gap:8}}><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Arbeitswoche & Zeiten</h3>
-    <p style={{fontSize:12,color:"#666",marginBottom:16,marginTop:4}}>Diese Zeiten nutzt die KI, um dein Training optimal um deinen Job herum zu planen.</p>
-    <div style={s.fg}><label style={s.lbl}>Arbeitstage</label><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{FULL_WEEKDAYS.map(d=><button key={d} onClick={()=>{const wd=form.workDays||[];const nd=wd.includes(d)?wd.filter(x=>x!==d):[...wd,d];setForm(f=>({...f,workDays:nd}))}} style={{...s.dayToggle,background:(form.workDays||[]).includes(d)?"#FFB70320":"rgba(255,255,255,0.04)",borderColor:(form.workDays||[]).includes(d)?"#FFB703":"rgba(255,255,255,0.08)",color:(form.workDays||[]).includes(d)?"#FFB703":"#888"}}>{d}</button>)}</div></div>
-    <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Arbeitsbeginn</label><input style={s.inp} type="time" value={form.workStart||"08:00"} onChange={e=>setForm(f=>({...f,workStart:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Arbeitsende</label><input style={s.inp} type="time" value={form.workEnd||"17:00"} onChange={e=>setForm(f=>({...f,workEnd:e.target.value}))}/></div></div>
-    <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10,marginTop:6,display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>☕</span> Frühstückspause (Pause 1)</div>
-    <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Beginn</label><input style={s.inp} type="time" value={form.break1Start||"09:30"} onChange={e=>setForm(f=>({...f,break1Start:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Ende</label><input style={s.inp} type="time" value={form.break1End||"10:00"} onChange={e=>setForm(f=>({...f,break1End:e.target.value}))}/></div></div>
-    <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10,marginTop:6,display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>🍱</span> Mittagspause (Pause 2)</div>
-    <div style={s.formGrid}><div style={s.fg}><label style={s.lbl}>Beginn</label><input style={s.inp} type="time" value={form.break2Start||"12:30"} onChange={e=>setForm(f=>({...f,break2Start:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Ende</label><input style={s.inp} type="time" value={form.break2End||"13:15"} onChange={e=>setForm(f=>({...f,break2End:e.target.value}))}/></div></div>
+     <p style={{fontSize:12,color:"#666",marginBottom:16,marginTop:4}}>Diese Zeiten nutzt die KI, um dein Training optimal um deinen Job herum zu planen.</p>
+     <div style={s.fg}><label style={s.lbl}>Arbeitstage</label><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{FULL_WEEKDAYS.map(d=><button key={d} onClick={()=>{const wd=form.workDays||[];const nd=wd.includes(d)?wd.filter(x=>x!==d):[...wd,d];setForm(f=>({...f,workDays:nd}))}} style={{...s.dayToggle,background:(form.workDays||[]).includes(d)?"#FFB70320":"rgba(255,255,255,0.04)",borderColor:(form.workDays||[]).includes(d)?"#FFB703":"rgba(255,255,255,0.08)",color:(form.workDays||[]).includes(d)?"#FFB703":"#888"}}>{d}</button>)}</div></div>
+     <div style={{...s.formGrid, gridTemplateColumns:isMobile?"1fr":"1fr 1fr"}}><div style={s.fg}><label style={s.lbl}>Arbeitsbeginn</label><input style={s.inp} type="time" value={form.workStart||"08:00"} onChange={e=>setForm(f=>({...f,workStart:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Arbeitsende</label><input style={s.inp} type="time" value={form.workEnd||"17:00"} onChange={e=>setForm(f=>({...f,workEnd:e.target.value}))}/></div></div>
+     <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10,marginTop:6,display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>☕</span> Frühstückspause (Pause 1)</div>
+     <div style={{...s.formGrid, gridTemplateColumns:isMobile?"1fr":"1fr 1fr"}}><div style={s.fg}><label style={s.lbl}>Beginn</label><input style={s.inp} type="time" value={form.break1Start||"09:30"} onChange={e=>setForm(f=>({...f,break1Start:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Ende</label><input style={s.inp} type="time" value={form.break1End||"10:00"} onChange={e=>setForm(f=>({...f,break1End:e.target.value}))}/></div></div>
+     <div style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10,marginTop:6,display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:14}}>🍱</span> Mittagspause (Pause 2)</div>
+    <div style={{...s.formGrid, gridTemplateColumns:isMobile?"1fr":"1fr 1fr"}}><div style={s.fg}><label style={s.lbl}>Beginn</label><input style={s.inp} type="time" value={form.break2Start||"12:30"} onChange={e=>setForm(f=>({...f,break2Start:e.target.value}))}/></div><div style={s.fg}><label style={s.lbl}>Ende</label><input style={s.inp} type="time" value={form.break2End||"13:15"} onChange={e=>setForm(f=>({...f,break2End:e.target.value}))}/></div></div>
   </div>
   </div>
   <div style={s.card}><h3 style={s.cardTitle}>Ernährungsziele</h3><div style={s.fg}><label style={s.lbl}>Tageskalorienziel</label><input style={s.inp} type="number" value={form.calorieGoal||""} onChange={e=>setForm(f=>({...f,calorieGoal:parseInt(e.target.value)||2500}))} placeholder="2500"/></div><div style={s.fg}><label style={s.lbl}>Proteinziel (g/Tag)</label><input style={s.inp} type="number" value={form.proteinGoal||""} onChange={e=>setForm(f=>({...f,proteinGoal:parseInt(e.target.value)||150}))} placeholder="150"/></div><div style={{height:1,background:"rgba(255,255,255,0.08)",margin:"18px 0"}}/><h3 style={{...s.cardTitle,marginBottom:14}}>Benachrichtigungen</h3><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.08)"}}><div><div style={{fontWeight:700,fontSize:15}}>Erinnerungen</div><div style={{color:"#666",fontSize:11,marginTop:2}}>Wenn Training ansteht</div></div><div style={{...s.toggle,...(form.notificationsEnabled?s.toggleOn:{})}} onClick={()=>setForm(f=>({...f,notificationsEnabled:!f.notificationsEnabled}))}><div style={{...s.thumb,...(form.notificationsEnabled?s.thumbOn:{})}}/></div></div>{form.notificationsEnabled&&<div style={{...s.fg,marginTop:14}}><label style={s.lbl}>Erinnerungszeit</label><input style={s.inp} type="time" value={form.reminderTime||"08:00"} onChange={e=>setForm(f=>({...f,reminderTime:e.target.value}))}/></div>}</div>
