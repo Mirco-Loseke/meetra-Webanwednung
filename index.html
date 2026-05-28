@@ -2893,7 +2893,7 @@ function LogWorkout({user,setUser,data,setData,notify,prs,onSavePR,library,activ
       }
       const sArr = sets[ei] || [];
       const valid = sArr.filter(s => s.done);
-      return valid.length > 0 ? { name: ex.name, sets: valid } : null;
+      return valid.length > 0 ? { name: ex.name, sets: valid, targetPace: ex.targetPace || null, trackGPS: ex.trackGPS || false } : null;
     }).filter(Boolean);
     
     if(parsed.length === 0) return notify("Keine Fortschritte zum Speichern!", "error");
@@ -3658,7 +3658,7 @@ function RouteMap({ path }) {
   return <div ref={mRef} style={{width: "100%", height: 160, borderRadius: 12, marginTop: 12, background: "#111", border: "1px solid #1A1A1F"}}></div>;
 }
 
-function GpsAnalytics({ path }) {
+function GpsAnalytics({ path, targetPace }) {
   if (!path || path.length < 2 || !path[0].t) return null;
 
   // 1. Calculate stats (splits, maxSpeed, standingMs, elevationGain, elevationLoss)
@@ -3736,6 +3736,7 @@ function GpsAnalytics({ path }) {
   }
   const avgKmh = totalRunDist > 0 ? (totalRunDist / (totalRunMs / 3600000)) : 0;
   const initialTargetPaceStr = (() => {
+    if (targetPace) return targetPace;
     if (avgKmh <= 0.1) return "06:00";
     const minsPerKm = 60 / avgKmh;
     const m = Math.floor(minsPerKm);
@@ -4055,9 +4056,43 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                   {ex.sets && ex.sets[0] && ex.sets[0].routePath && ex.sets[0].routePath.length > 0 && (
                     <>
                       <RouteMap path={ex.sets[0].routePath} />
-                      <GpsAnalytics path={ex.sets[0].routePath} />
+                      <GpsAnalytics path={ex.sets[0].routePath} targetPace={ex.targetPace} />
                     </>
                   )}
+                  {ex.sets && ex.sets[0] && ex.targetPace && (!ex.sets[0].routePath || ex.sets[0].routePath.length === 0) && (() => {
+                    const actualPaceStr = formatPace(parseFloat(ex.sets[0].tempo || 0));
+                    if (actualPaceStr === "-:--") return null;
+                    
+                    const parsePace = (str) => {
+                      if (!str || !str.includes(':')) return 0;
+                      const parts = str.split(':');
+                      return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+                    };
+                    
+                    const targetSecs = parsePace(ex.targetPace);
+                    const actualSecs = parsePace(actualPaceStr);
+                    const diff = actualSecs - targetSecs;
+                    
+                    const diffFormatted = diff < 0 
+                      ? `-${Math.abs(Math.round(diff))}s (Schneller)` 
+                      : (diff > 0 ? `+${Math.round(diff)}s (Langsamer)` : `Punktlandung! 🎉`);
+                    const diffColor = diff < 0 ? "#06D6A0" : (diff > 0 ? "#EF476F" : "#FFD166");
+                    
+                    return (
+                      <div style={{marginTop: 15, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 12}}>
+                        <div style={{fontSize: 10, fontWeight: 800, color: "#666", textTransform: "uppercase", marginBottom: 6}}>Pace Soll-Ist-Vergleich</div>
+                        <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+                          <div>
+                            <div style={{fontSize: 11, color: "#888"}}>Ziel-Pace: <span style={{color: "#fff", fontWeight: "bold"}}>{ex.targetPace} /km</span></div>
+                            <div style={{fontSize: 11, color: "#888", marginTop: 2}}>Ist-Pace: <span style={{color: "#fff", fontWeight: "bold"}}>{actualPaceStr} /km</span></div>
+                          </div>
+                          <div style={{textAlign: "right"}}>
+                            <div style={{fontSize: 12, fontWeight: 900, color: diffColor}}>{diffFormatted}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
 
@@ -4134,25 +4169,46 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                 const plan=data.plans.find(p=>p.id===w.planId);
                 return(
                   <div key={w.id} style={{...s.histCard,padding:18, borderLeft:`5px solid ${plan?.color || "rgba(255,255,255,0.2)"}`, borderTop:"1px solid rgba(255,255,255,0.1)", borderRight:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", background:plan?`linear-gradient(135deg, ${plan.color}1A 0%, ${plan.color}08 40%, rgba(18,18,24,0.55) 100%)`:"linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 60%), rgba(18,18,24,0.5)", backdropFilter:"blur(24px) saturate(190%)", WebkitBackdropFilter:"blur(24px) saturate(190%)", boxShadow:plan?`inset 0 1px 1px rgba(255,255,255,0.1), 0 8px 32px rgba(0,0,0,0.35)`:"inset 0 1px 1px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.3)", flexDirection:"column", alignItems:"stretch", borderRadius:16, position:"relative", overflow:"visible"}} className="histCard" onClick={()=>setSelWO(w.id)}>
+                    {w.earnedPoints && (
+                      <div style={{
+                        position: "absolute",
+                        top: "-10px",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        background: "linear-gradient(135deg, #FFD166 0%, #FF9F1C 100%)",
+                        color: "#0D0D0F",
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        fontSize: "10px",
+                        fontWeight: "900",
+                        fontFamily: "'DM Sans',sans-serif",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3,
+                        boxShadow: "0 2px 8px rgba(255,209,102,0.4)",
+                        zIndex: 10
+                      }}>
+                        <span>F.P.</span>
+                        <span>🪙</span>
+                        <span>+{w.earnedPoints}</span>
+                      </div>
+                    )}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <div style={{fontFamily:"'DM Sans',sans-serif",fontWeight:800,fontSize:isMobile?16:18,color:plan?.color || "#F0EDE8"}}>{w.name}</div>
                         {w.hiitMode && <div style={{display:"flex",color:"#FFD166",filter:"drop-shadow(0 0 5px rgba(255,209,102,0.5))"}} className="hiit-glow">{IC.bolt}</div>}
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
-                          <span style={{fontSize:11,fontWeight:800,color:"#FF6B35"}}>{fmtDate(w.date)}</span>
-                          <div style={{display:"flex",gap:4,fontSize:10,fontWeight:700,color:"#888"}}>
-                            <span>{w.startTime || "--"}</span>
-                            <span style={{color:"#444"}}>-</span>
-                            <span>{w.endTime || "--"}</span>
-                          </div>
+                        <div style={{display:"flex",gap:4,fontSize:10,fontWeight:700,color:"#888"}}>
+                          <span>{w.startTime || "--"}</span>
+                          <span style={{color:"#444"}}>-</span>
+                          <span>{w.endTime || "--"}</span>
                         </div>
                         <span style={{fontSize:16,color:"#444",marginLeft:2}}>→</span>
                       </div>
                     </div>
                     
-                    <div style={{display:"grid",gridTemplateColumns: w.hiitMode ? "repeat(2,1fr)" : "repeat(3,1fr)",gap:10,marginBottom:12}}>
+                    <div style={{display:"grid",gridTemplateColumns: w.hiitMode ? "repeat(2,1fr)" : (isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)"),gap:10,marginBottom:12}}>
                       <div style={{textAlign:"center",padding:"10px 8px",background:"rgba(255,107,53,0.06)",borderRadius:12,border:"1px solid rgba(255,107,53,0.18)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",boxShadow:"inset 0 1px 0 rgba(255,107,53,0.12)"}}>
                         <div style={{fontSize:10,color:"#666",marginBottom:2,textTransform:"uppercase",fontWeight:700}}>Dauer</div>
                         <div style={{fontSize:13,fontWeight:800,color:"#FF6B35"}}>{w.duration} min</div>
@@ -4189,6 +4245,10 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                           {w.exercises.length}
                         </div>
                       </div>
+                      <div style={{textAlign:"center",padding:"10px 8px",background:"rgba(255,255,255,0.04)",borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",boxShadow:"inset 0 1px 0 rgba(255,255,255,0.06)"}}>
+                        <div style={{fontSize:10,color:"#666",marginBottom:2,textTransform:"uppercase",fontWeight:700}}>Datum</div>
+                        <div style={{fontSize:11,fontWeight:800,color:"#F0EDE8"}}>{fmtDate(w.date)}</div>
+                      </div>
                     </div>
 
 
@@ -4214,30 +4274,6 @@ function History({data,setData,selWO,setSelWO,notify,library,setWeeklyReport,isM
                         </div>
                       </div>
                     </div>}
-                    {w.earnedPoints && (
-                      <div style={{
-                        position: "absolute",
-                        bottom: -11,
-                        right: 24,
-                        background: "linear-gradient(135deg, #FFB703, #FF8C00)",
-                        color: "#000",
-                        padding: "3px 10px",
-                        borderRadius: "12px",
-                        fontSize: "10px",
-                        fontWeight: "900",
-                        fontFamily: "'DM Sans',sans-serif",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        border: "1px solid #FFD166",
-                        boxShadow: "0 3px 8px rgba(255, 183, 3, 0.4)",
-                        zIndex: 2
-                      }}>
-                        <span>F. P.</span>
-                        <span>🪙</span>
-                        <span>+{w.earnedPoints}</span>
-                      </div>
-                    )}
                   </div>
                 );
               })}
